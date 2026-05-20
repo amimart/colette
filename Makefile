@@ -33,6 +33,10 @@ lint-md: ## Lint Markdown
 	@printf "$(COLOR_CYAN)$(BOLD)📝 Linting Markdown...$(COLOR_RESET)\n"
 	npx markdownlint-cli2 "**/*.md"
 
+lint-yaml: ## Lint YAML
+	@printf "$(COLOR_CYAN)$(BOLD)📋 Linting YAML...$(COLOR_RESET)\n"
+	yamllint .
+
 ## Clean:
 clean: ## Clean all build artifacts and local deployment
 	rm -rf $(TARGET_FOLDER)
