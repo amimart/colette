@@ -3,6 +3,9 @@ use crate::store::{MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
 use crate::error::Error;
 use crate::key::{HasKey, Key};
 
+/// Index allows to maintain a separate query efficient stores on non primary-key, it is made for
+/// a specific Entity and specified by a Key to index extracted from an Entity, and an IndexKind
+/// (i.e. Unique or Multi).
 pub trait Index<PrimaryKey: Key, Record: HasKey<PrimaryKey>> {
     type Key: Key;
     type Kind: IndexKind<Self::Key, PrimaryKey>;
@@ -70,4 +73,21 @@ where
         PrimaryKey: 'a;
 
     fn store_key<'a>(k: &'a IndexKey, pk: &'a PrimaryKey) -> Self::StoreKey<'a>;
+}
+
+pub struct Unique;
+
+impl<IndexKey, PrimaryKey> IndexKind<IndexKey, PrimaryKey> for Unique
+where
+    IndexKey: Key,
+    PrimaryKey: Key,
+{
+    type StoreKey<'a> = &'a IndexKey
+    where
+        IndexKey: 'a,
+        PrimaryKey: 'a;
+
+    fn store_key<'a>(k: &'a IndexKey, _pk: &'a PrimaryKey) -> Self::StoreKey<'a> {
+        k
+    }
 }
