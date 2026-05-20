@@ -89,3 +89,43 @@ where
         self
     }
 }
+
+pub trait PrefixScan<StoredKey: Key + Prefixable<KeyPrefix>, KeyPrefix: Prefix> {
+    fn prefix(self, prefix: KeyPrefix) -> Self;
+
+    fn prefix_range(self, range: Range<Bound<KeyPrefix>>) -> Self;
+
+    fn range(self, range: Range<Bound<PrefixOrKey<StoredKey, KeyPrefix>>>) -> Self;
+}
+
+impl<'a, ReadHandle, PrimaryKey, Record, Idx, KeyPrefix> PrefixScan<StoreKey<'a, Idx, PrimaryKey, Record>, KeyPrefix> for IndexScan<'a, ReadHandle, PrimaryKey, Record, Idx>
+where
+    ReadHandle: MultiStoreReadHandle,
+    PrimaryKey: Key,
+    Record: Entity<PrimaryKey>,
+    Idx: Index<PrimaryKey, Record>,
+    Idx::Kind: IndexKind<Idx::Key, PrimaryKey>,
+    KeyPrefix: Prefix,
+    StoreKey<'a, Idx, PrimaryKey, Record>: Key + Prefixable<KeyPrefix>,
+{
+    fn prefix(mut self, prefix: KeyPrefix) -> Self {
+        self.range = ScanRange::Prefix(prefix.encode_prefix());
+        self
+    }
+
+    fn prefix_range(mut self, range: Range<Bound<KeyPrefix>>) -> Self {
+        self.range = ScanRange::Range {
+            left: range.start.map(|p |p.encode_prefix()),
+            right: range.end.map(|p |p.encode_prefix()),
+        };
+        self
+    }
+
+    fn range(mut self, range: Range<Bound<PrefixOrKey<StoreKey<'a, Idx, PrimaryKey, Record>, KeyPrefix>>>) -> Self {
+        self.range = ScanRange::Range {
+            left: range.start.map(|p |p.encode()),
+            right: range.end.map(|p |p.encode()),
+        };
+        self
+    }
+}
