@@ -1,27 +1,31 @@
 use std::marker::PhantomData;
 use crate::entity::Entity;
-use crate::store::{MultiStore};
+use crate::store::{MultiStore, MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
 use crate::error::Error;
+use crate::index::{ContainsIndex, Index, IndexKind, IndexRegistry};
 use crate::key::Key;
+use crate::scan::IndexScan;
 
-pub struct Collection<DB, PrimaryKey, Record>
+pub struct Collection<DB, PrimaryKey, Record, Indexes>
 where
     DB: MultiStore,
     PrimaryKey: Key,
     // The stored record implementing the Entity contract
     Record: Entity<PrimaryKey>,
+    Indexes: IndexRegistry<PrimaryKey, Record>,
 {
     name: String,
     db: DB,
 
-    _marker: PhantomData<(PrimaryKey, Record)>,
+    _marker: PhantomData<(PrimaryKey, Record, Indexes)>,
 }
 
-impl<DB, PrimaryKey, Record, Indexes> Collection<DB, PrimaryKey, Record>
+impl<DB, PrimaryKey, Record, Indexes> Collection<DB, PrimaryKey, Record, Indexes>
 where
     DB: MultiStore,
     PrimaryKey: Key,
     Record: Entity<PrimaryKey>,
+    Indexes: IndexRegistry<PrimaryKey, Record>,
 {
     pub fn new(name: String, db: DB) -> Self {
         Self {
