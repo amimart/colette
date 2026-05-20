@@ -21,6 +21,13 @@ build-rust: ## Build the magnarr binary
 	@printf "$(COLOR_GREEN)$(BOLD)🔨 Building...$(COLOR_RESET)\n"
 	cargo build
 
+## Test:
+test: test-rust ## Run all tests
+
+test-rust: ## Run Rust tests
+	@printf "$(COLOR_GREEN)$(BOLD)🧪 Running tests...$(COLOR_RESET)\n"
+	cargo test
+
 ## Lint:
 lint: lint-rust lint-rust-format lint-md lint-yaml ## Run all linters
 
