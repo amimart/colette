@@ -127,3 +127,87 @@ impl Key for Vec<u8> {
         self.to_vec()
     }
 }
+
+impl<A, B> Key for (A, B)
+where
+    A: Key,
+    B: Key,
+{
+    const SIZE: KeySize = match (A::SIZE, B::SIZE) {
+        (KeySize::Fixed(s1), KeySize::Fixed(s2)) => KeySize::Fixed(s1 + s2),
+        _ => KeySize::Variable,
+    };
+
+    fn encode_into(&self, out: &mut Vec<u8>) {
+        self.0.encode_into(out);
+        self.1.encode_into(out);
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(match Self::SIZE {
+            KeySize::Fixed(s) => s,
+            KeySize::Variable => 0,
+        });
+
+        self.encode_into(&mut out);
+        out
+    }
+}
+
+impl<A, B, C> Key for (A, B, C)
+where
+    A: Key,
+    B: Key,
+    C: Key,
+{
+    const SIZE: KeySize = match (A::SIZE, B::SIZE, C::SIZE) {
+        (KeySize::Fixed(s1), KeySize::Fixed(s2), KeySize::Fixed(s3)) => KeySize::Fixed(s1 + s2 + s3),
+        _ => KeySize::Variable,
+    };
+
+    fn encode_into(&self, out: &mut Vec<u8>) {
+        self.0.encode_into(out);
+        self.1.encode_into(out);
+        self.2.encode_into(out);
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(match Self::SIZE {
+            KeySize::Fixed(s) => s,
+            KeySize::Variable => 0,
+        });
+
+        self.encode_into(&mut out);
+        out
+    }
+}
+
+impl<A, B, C, D> Key for (A, B, C, D)
+where
+    A: Key,
+    B: Key,
+    C: Key,
+    D: Key,
+{
+    const SIZE: KeySize = match (A::SIZE, B::SIZE, C::SIZE, D::SIZE) {
+        (KeySize::Fixed(s1), KeySize::Fixed(s2), KeySize::Fixed(s3), KeySize::Fixed(s4)) => KeySize::Fixed(s1 + s2 + s3 + s4),
+        _ => KeySize::Variable,
+    };
+
+    fn encode_into(&self, out: &mut Vec<u8>) {
+        self.0.encode_into(out);
+        self.1.encode_into(out);
+        self.2.encode_into(out);
+        self.3.encode_into(out);
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(match Self::SIZE {
+            KeySize::Fixed(s) => s,
+            KeySize::Variable => 0,
+        });
+
+        self.encode_into(&mut out);
+        out
+    }
+}
