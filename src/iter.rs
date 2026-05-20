@@ -9,6 +9,7 @@ pub struct IndexEntry<Record> {
     pub key: Cursor,
 }
 
+#[allow(dead_code)]
 pub struct Cursor(Vec<u8>);
 
 pub struct IndexIterator<Store, PrimaryKey, Record>
