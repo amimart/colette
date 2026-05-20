@@ -1,5 +1,36 @@
 use crate::error::BackendError;
 
+pub trait MultiStore {
+    type ReadHandle<'a>: MultiStoreReadHandle
+    where
+        Self: 'a;
+    type WriteHandle<'a>: MultiStoreWriteHandle
+    where
+        Self: 'a;
+
+    fn read(&self) -> Result<Self::ReadHandle<'_>, BackendError>;
+
+    fn write(&self) -> Result<Self::WriteHandle<'_>, BackendError>;
+}
+
+pub trait MultiStoreReadHandle {
+    type Store<'a>: ReadKVStore
+    where
+        Self: 'a;
+
+    fn open_store(&self, name: &str) -> Result<Self::Store<'_>, BackendError>;
+}
+
+pub trait MultiStoreWriteHandle {
+    type Store<'a>: ReadWriteKVStore
+    where
+        Self: 'a;
+
+    fn open_store(&mut self, name: &str) -> Result<Self::Store<'_>, BackendError>;
+
+    fn commit(self) -> Result<(), BackendError>;
+}
+
 pub trait ReadWriteKVStore: ReadKVStore + WriteKVStore {}
 
 pub trait WriteKVStore {
