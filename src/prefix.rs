@@ -23,3 +23,36 @@ pub fn prefix_end(mut bytes: Vec<u8>) {
 
     bytes.push(0x00);
 }
+
+pub trait Prefixable<P>
+where
+    P: Prefix
+{}
+
+impl<A, B> Prefixable<A> for (A, B)
+where
+    A: Key,
+    B: Key,
+{}
+
+impl<A, B, C> Prefixable<A> for (A, B, C)
+where
+    A: Key,
+    B: Key,
+    C: Key,
+{}
+
+impl<A, B, C> Prefixable<(A, B)> for (A, B, C)
+where
+    A: Key,
+    B: Key,
+    C: Key,
+{}
+
+impl<A, B, C, D> Prefixable<(A, B, C)> for (A, B, C, D)
+where
+    A: Key,
+    B: Key,
+    C: Key,
+    D: Key,
+{}
