@@ -21,6 +21,9 @@ build-rust: ## Build the magnarr binary
 	@printf "$(COLOR_GREEN)$(BOLD)🔨 Building...$(COLOR_RESET)\n"
 	cargo build
 
+## Lint:
+lint: lint-rust lint-rust-format lint-md lint-yaml ## Run all linters
+
 lint-rust: ## Lint Rust code with Clippy
 	@printf "$(COLOR_CYAN)$(BOLD)🦀 Linting Rust...$(COLOR_RESET)\n"
 	cargo clippy -- -D warnings
