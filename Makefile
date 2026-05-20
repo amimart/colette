@@ -83,12 +83,12 @@ fix-md: ## Auto-fix Markdown
 
 ## Clean:
 .PHONY: clean
-clean: ## Clean all build artifacts and local deployment
+clean: ## Clean the build artifacts
 	rm -rf $(TARGET_FOLDER)
 
 ## Help:
 .PHONY: help
-help: ## Show this help.
+help: ## Show this help
 	@echo ''
 	@echo 'Usage:'
 	@echo '  ${COLOR_YELLOW}make${COLOR_RESET} ${COLOR_GREEN}<target>${COLOR_RESET}'
