@@ -1,9 +1,8 @@
+use std::marker::PhantomData;
+use crate::store::{MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
 use crate::error::Error;
 use crate::key::{HasKey, Key};
 
-/// Index allows to maintain a separate query efficient stores on non primary-key, it is made for
-/// a specific Entity and specified by a Key to index extracted from an Entity, and an IndexKind
-/// (i.e. Unique or Multi).
 pub trait Index<PrimaryKey: Key, Record: HasKey<PrimaryKey>> {
     type Key: Key;
     type Kind: IndexKind<Self::Key, PrimaryKey>;
@@ -12,9 +11,45 @@ pub trait Index<PrimaryKey: Key, Record: HasKey<PrimaryKey>> {
 
     fn key(entity: &Record) -> Self::Key;
 
-    fn set<DB: MultiStoreWriteHandle>(db: &mut DB, old: Option<(&PrimaryKey, &Record)>, new: (&PrimaryKey, &Record)) -> Result<(), Error>;
+    fn set<DB: MultiStoreWriteHandle>(db: &mut DB, old: Option<(&PrimaryKey, &Record)>, new: (&PrimaryKey, &Record)) -> Result<(), Error> {
+        let new_skey = Self::Kind::store_key(&Self::key(&new.1), new.0).encode();
+        let old_skey = old.map(|(pk, entity)|
+            Self::Kind::store_key(&Self::key(entity), pk).encode()
+        );
 
-    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PrimaryKey, &Record)) -> Result<(), Error>;
+        match old_skey {
+            // Noop when the index key didn't change
+            // todo: we can avoid allocations before by comparing only non encoded index keys here
+            Some(old_skey) if old_skey == new_skey => {
+                return Ok(())
+            }
+            _ => {}
+        };
+
+        let mut store = db.open_store(Self::NAME)?;
+
+        if let Some(skey) = old_skey {
+            store.remove(&skey)?;
+        }
+
+        if let Some(_) = store.get(&new_skey)? {
+            Err(Error::AlreadyExists(Self::NAME.to_string()))?
+        }
+
+        // todo: we can avoid encoding the pk as value for multi indexes, as already present in the key.
+        // todo: we can add a IndexKind::store_value(&PK) -> &[u8], returning the pk for unique impl and empty for multi.
+        store.set(&new_skey, &new.0.encode())?;
+
+        Ok(())
+    }
+
+    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PrimaryKey, &Record)) -> Result<(), Error> {
+        let mut store = db.open_store(Self::NAME)?;
+        let ikey = Self::key(&target.1);
+        let skey = Self::Kind::store_key(&ikey, target.0).encode();
+
+        store.remove(&skey).map_err(|e| Error::Backend(e.into()))
+    }
 }
 
 pub type StoreKey<'a, I, PK, T> = <<I as Index<PK, T>>::Kind as IndexKind<<I as Index<PK, T>>::Key, PK>>::StoreKey<'a>;
