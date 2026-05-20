@@ -14,6 +14,13 @@ endef
 
 all: help
 
+## Build:
+build: build-rust ## Build rust (i.e. not docker)
+
+build-rust: ## Build the magnarr binary
+	@printf "$(COLOR_GREEN)$(BOLD)🔨 Building...$(COLOR_RESET)\n"
+	cargo build
+
 ## Clean:
 clean: ## Clean all build artifacts and local deployment
 	rm -rf $(TARGET_FOLDER)
