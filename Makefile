@@ -14,6 +14,10 @@ endef
 
 all: help
 
+## Clean:
+clean: ## Clean all build artifacts and local deployment
+	rm -rf $(TARGET_FOLDER)
+
 ## Help:
 help: ## Show this help.
 	@echo ''
