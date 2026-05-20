@@ -1,7 +1,7 @@
-use std::marker::PhantomData;
-use crate::store::{MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
 use crate::error::Error;
 use crate::key::{AppendKey, HasKey, Key};
+use crate::store::{MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
+use std::marker::PhantomData;
 
 /// Index allows to maintain a separate query efficient stores on non primary-key, it is made for
 /// a specific Entity and specified by a Key to index extracted from an Entity, and an IndexKind
@@ -14,18 +14,19 @@ pub trait Index<PrimaryKey: Key, Record: HasKey<PrimaryKey>> {
 
     fn key(entity: &Record) -> Self::Key;
 
-    fn set<DB: MultiStoreWriteHandle>(db: &mut DB, old: Option<(&PrimaryKey, &Record)>, new: (&PrimaryKey, &Record)) -> Result<(), Error> {
-        let new_skey = Self::Kind::store_key(&Self::key(&new.1), new.0).encode();
-        let old_skey = old.map(|(pk, entity)|
-            Self::Kind::store_key(&Self::key(entity), pk).encode()
-        );
+    fn set<DB: MultiStoreWriteHandle>(
+        db: &mut DB,
+        old: Option<(&PrimaryKey, &Record)>,
+        new: (&PrimaryKey, &Record),
+    ) -> Result<(), Error> {
+        let new_skey = Self::Kind::store_key(&Self::key(new.1), new.0).encode();
+        let old_skey =
+            old.map(|(pk, entity)| Self::Kind::store_key(&Self::key(entity), pk).encode());
 
         match old_skey {
             // Noop when the index key didn't change
             // todo: we can avoid allocations before by comparing only non encoded index keys here
-            Some(old_skey) if old_skey == new_skey => {
-                return Ok(())
-            }
+            Some(old_skey) if old_skey == new_skey => return Ok(()),
             _ => {}
         };
 
@@ -35,7 +36,7 @@ pub trait Index<PrimaryKey: Key, Record: HasKey<PrimaryKey>> {
             store.remove(&skey)?;
         }
 
-        if let Some(_) = store.get(&new_skey)? {
+        if store.get(&new_skey)?.is_some() {
             Err(Error::AlreadyExists(Self::NAME.to_string()))?
         }
 
@@ -46,16 +47,20 @@ pub trait Index<PrimaryKey: Key, Record: HasKey<PrimaryKey>> {
         Ok(())
     }
 
-    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PrimaryKey, &Record)) -> Result<(), Error> {
+    fn remove<DB: MultiStoreWriteHandle>(
+        db: &mut DB,
+        target: (&PrimaryKey, &Record),
+    ) -> Result<(), Error> {
         let mut store = db.open_store(Self::NAME)?;
-        let ikey = Self::key(&target.1);
+        let ikey = Self::key(target.1);
         let skey = Self::Kind::store_key(&ikey, target.0).encode();
 
-        store.remove(&skey).map_err(|e| Error::Backend(e.into()))
+        store.remove(&skey).map_err(Error::Backend)
     }
 }
 
-pub type StoreKey<'a, I, PK, T> = <<I as Index<PK, T>>::Kind as IndexKind<<I as Index<PK, T>>::Key, PK>>::StoreKey<'a>;
+pub type StoreKey<'a, I, PK, T> =
+    <<I as Index<PK, T>>::Kind as IndexKind<<I as Index<PK, T>>::Key, PK>>::StoreKey<'a>;
 
 /// IndexKind helps to specify an index behavior by expressing the actual stored key in the index
 /// based on the index key and the underlying entity primary key.
@@ -82,7 +87,8 @@ where
     IndexKey: Key,
     PrimaryKey: Key,
 {
-    type StoreKey<'a> = &'a IndexKey
+    type StoreKey<'a>
+        = &'a IndexKey
     where
         IndexKey: 'a,
         PrimaryKey: 'a;
@@ -99,7 +105,8 @@ where
     IndexKey: Key + AppendKey<PrimaryKey>,
     PrimaryKey: Key,
 {
-    type StoreKey<'a> = <IndexKey as AppendKey<PrimaryKey>>::Key<'a>
+    type StoreKey<'a>
+        = <IndexKey as AppendKey<PrimaryKey>>::Key<'a>
     where
         IndexKey: 'a,
         PrimaryKey: 'a;
@@ -116,16 +123,24 @@ pub struct Cons<Head, Tail>(PhantomData<(Head, Tail)>);
 
 /// IndexRegistry is a recursive HList trait to allow defining multiple indexes as generic types.
 pub trait IndexRegistry<PK: Key, T: HasKey<PK>> {
-    fn set<DB: MultiStoreWriteHandle>(db: &mut DB, old: Option<(&PK, &T)>, new: (&PK, &T)) -> Result<(), Error>;
+    fn set<DB: MultiStoreWriteHandle>(
+        db: &mut DB,
+        old: Option<(&PK, &T)>,
+        new: (&PK, &T),
+    ) -> Result<(), Error>;
     fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PK, &T)) -> Result<(), Error>;
 }
 
 impl<PK: Key, T: HasKey<PK>> IndexRegistry<PK, T> for Nil {
-    fn set<DB: MultiStoreWriteHandle>(_db: &mut DB, _old: Option<(&PK, &T)>, _new: (&PK, &T)) -> Result<(), Error> {
+    fn set<DB: MultiStoreWriteHandle>(
+        _db: &mut DB,
+        _old: Option<(&PK, &T)>,
+        _new: (&PK, &T),
+    ) -> Result<(), Error> {
         Ok(())
     }
 
-    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PK, &T)) -> Result<(), Error>{
+    fn remove<DB: MultiStoreWriteHandle>(_db: &mut DB, _target: (&PK, &T)) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -138,12 +153,16 @@ where
     Head::Kind: IndexKind<Head::Key, PK>,
     Tail: IndexRegistry<PK, T>,
 {
-    fn set<DB: MultiStoreWriteHandle>(db: &mut DB, old: Option<(&PK, &T)>, new: (&PK, &T)) -> Result<(), Error> {
+    fn set<DB: MultiStoreWriteHandle>(
+        db: &mut DB,
+        old: Option<(&PK, &T)>,
+        new: (&PK, &T),
+    ) -> Result<(), Error> {
         Head::set(db, old, new)?;
         Tail::set(db, old, new)
     }
 
-    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PK, &T)) -> Result<(), Error>{
+    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PK, &T)) -> Result<(), Error> {
         Head::remove(db, target)?;
         Tail::remove(db, target)
     }
@@ -154,7 +173,7 @@ pub trait ContainsIndex<I, Proof> {}
 
 impl<I, Tail> ContainsIndex<I, Here> for Cons<I, Tail> {}
 
-impl<I, Head, Tail, Proof> ContainsIndex<I, There<Proof>> for Cons<Head, Tail>
-where
-    Tail: ContainsIndex<I, Proof>,
-{}
+impl<I, Head, Tail, Proof> ContainsIndex<I, There<Proof>> for Cons<Head, Tail> where
+    Tail: ContainsIndex<I, Proof>
+{
+}

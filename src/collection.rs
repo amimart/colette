@@ -1,10 +1,10 @@
-use std::marker::PhantomData;
 use crate::entity::Entity;
-use crate::store::{MultiStore, MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
 use crate::error::Error;
 use crate::index::{ContainsIndex, Index, IndexKind, IndexRegistry};
 use crate::key::Key;
 use crate::scan::IndexScan;
+use crate::store::{MultiStore, MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
+use std::marker::PhantomData;
 
 pub struct Collection<DB, PrimaryKey, Record, Indexes>
 where
@@ -42,33 +42,36 @@ where
         {
             let mut store = tx.open_store(&self.name)?;
 
-            if let Some(_) = store.get(&pk)? {
+            if store.get(&pk)?.is_some() {
                 Err(Error::AlreadyExists(self.name.clone()))?
             }
 
             store.set(&pk, &value.to_bytes()?)?;
         }
 
-        tx.commit().map_err(|e| Error::Backend(e.into()))
+        tx.commit().map_err(Error::Backend)
     }
 
-    pub fn get(&self, key: PrimaryKey) -> Result<Option<Record>, Error> {
+    pub fn get(&self, _key: PrimaryKey) -> Result<Option<Record>, Error> {
         Ok(None)
     }
 
-    pub fn update(&self, value: Record) -> Result<(), Error> {
+    pub fn update(&self, _value: Record) -> Result<(), Error> {
         Ok(())
     }
 
-    pub fn save(&self, value: Record) -> Result<(), Error> {
+    pub fn save(&self, _value: Record) -> Result<(), Error> {
         Ok(())
     }
 
-    pub fn remove(&self, key: PrimaryKey) -> Result<(), Error> {
+    pub fn remove(&self, _key: PrimaryKey) -> Result<(), Error> {
         Ok(())
     }
 
-    pub fn index<Idx, P>(&self, _idx: Idx) -> Result<IndexScan<DB::ReadHandle<'_>, PrimaryKey, Record, Idx>, Error>
+    pub fn index<Idx, P>(
+        &self,
+        _idx: Idx,
+    ) -> Result<IndexScan<'_, DB::ReadHandle<'_>, PrimaryKey, Record, Idx>, Error>
     where
         Idx: Index<PrimaryKey, Record>,
         Idx::Kind: IndexKind<Idx::Key, PrimaryKey>,

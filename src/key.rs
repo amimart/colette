@@ -16,7 +16,7 @@ pub trait HasKey<K: Key> {
     fn key(&self) -> K;
 }
 
-impl<K: Key + ?Sized> Key for &K {
+impl<K: Key> Key for &K {
     const SIZE: KeySize = K::SIZE;
 
     fn encode_into(&self, out: &mut Vec<u8>) {
@@ -28,7 +28,7 @@ impl<K: Key + ?Sized> Key for &K {
     }
 }
 
-impl<K: Key + ?Sized> Key for (K,) {
+impl<K: Key> Key for (K,) {
     const SIZE: KeySize = K::SIZE;
 
     fn encode_into(&self, out: &mut Vec<u8>) {
@@ -161,7 +161,9 @@ where
     C: Key,
 {
     const SIZE: KeySize = match (A::SIZE, B::SIZE, C::SIZE) {
-        (KeySize::Fixed(s1), KeySize::Fixed(s2), KeySize::Fixed(s3)) => KeySize::Fixed(s1 + s2 + s3),
+        (KeySize::Fixed(s1), KeySize::Fixed(s2), KeySize::Fixed(s3)) => {
+            KeySize::Fixed(s1 + s2 + s3)
+        }
         _ => KeySize::Variable,
     };
 
@@ -190,7 +192,9 @@ where
     D: Key,
 {
     const SIZE: KeySize = match (A::SIZE, B::SIZE, C::SIZE, D::SIZE) {
-        (KeySize::Fixed(s1), KeySize::Fixed(s2), KeySize::Fixed(s3), KeySize::Fixed(s4)) => KeySize::Fixed(s1 + s2 + s3 + s4),
+        (KeySize::Fixed(s1), KeySize::Fixed(s2), KeySize::Fixed(s3), KeySize::Fixed(s4)) => {
+            KeySize::Fixed(s1 + s2 + s3 + s4)
+        }
         _ => KeySize::Variable,
     };
 
@@ -247,7 +251,8 @@ pub trait AppendKey<PK: Key> {
 }
 
 impl<K: Key, PK: Key> AppendKey<PK> for (K,) {
-    type Key<'a> = (&'a K, &'a PK)
+    type Key<'a>
+        = (&'a K, &'a PK)
     where
         K: 'a,
         PK: 'a;
@@ -258,7 +263,8 @@ impl<K: Key, PK: Key> AppendKey<PK> for (K,) {
 }
 
 impl<A: Key, B: Key, PK: Key> AppendKey<PK> for (A, B) {
-    type Key<'a> = (&'a A, &'a B, &'a PK)
+    type Key<'a>
+        = (&'a A, &'a B, &'a PK)
     where
         A: 'a,
         B: 'a,
@@ -270,7 +276,8 @@ impl<A: Key, B: Key, PK: Key> AppendKey<PK> for (A, B) {
 }
 
 impl<A: Key, B: Key, C: Key, PK: Key> AppendKey<PK> for (A, B, C) {
-    type Key<'a> = (&'a A, &'a B, &'a C, &'a PK)
+    type Key<'a>
+        = (&'a A, &'a B, &'a C, &'a PK)
     where
         A: 'a,
         B: 'a,

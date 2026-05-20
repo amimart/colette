@@ -1,10 +1,10 @@
-use std::marker::PhantomData;
-use std::ops::{Bound, Range};
 use crate::entity::Entity;
 use crate::index::{Index, IndexKind, StoreKey};
 use crate::key::Key;
 use crate::prefix::{Prefix, Prefixable};
 use crate::store::MultiStoreReadHandle;
+use std::marker::PhantomData;
+use std::ops::{Bound, Range};
 
 pub enum Direction {
     LeftToRight,
@@ -32,7 +32,10 @@ where
 pub enum ScanRange {
     All,
     Prefix(Vec<u8>),
-    Range{ left: Bound<Vec<u8>>, right: Bound<Vec<u8>> },
+    Range {
+        left: Bound<Vec<u8>>,
+        right: Bound<Vec<u8>>,
+    },
 }
 
 pub struct IndexScan<'a, ReadHandle, PrimaryKey, Record, Idx>
@@ -73,8 +76,8 @@ where
 
     pub fn range(mut self, range: Range<Bound<StoreKey<'a, Idx, PrimaryKey, Record>>>) -> Self {
         self.range = ScanRange::Range {
-            left: range.start.map(|p |p.encode()),
-            right: range.end.map(|p |p.encode()),
+            left: range.start.map(|p| p.encode()),
+            right: range.end.map(|p| p.encode()),
         };
         self
     }
@@ -98,7 +101,9 @@ pub trait PrefixScan<StoredKey: Key + Prefixable<KeyPrefix>, KeyPrefix: Prefix> 
     fn range(self, range: Range<Bound<PrefixOrKey<StoredKey, KeyPrefix>>>) -> Self;
 }
 
-impl<'a, ReadHandle, PrimaryKey, Record, Idx, KeyPrefix> PrefixScan<StoreKey<'a, Idx, PrimaryKey, Record>, KeyPrefix> for IndexScan<'a, ReadHandle, PrimaryKey, Record, Idx>
+impl<'a, ReadHandle, PrimaryKey, Record, Idx, KeyPrefix>
+    PrefixScan<StoreKey<'a, Idx, PrimaryKey, Record>, KeyPrefix>
+    for IndexScan<'a, ReadHandle, PrimaryKey, Record, Idx>
 where
     ReadHandle: MultiStoreReadHandle,
     PrimaryKey: Key,
@@ -115,16 +120,19 @@ where
 
     fn prefix_range(mut self, range: Range<Bound<KeyPrefix>>) -> Self {
         self.range = ScanRange::Range {
-            left: range.start.map(|p |p.encode_prefix()),
-            right: range.end.map(|p |p.encode_prefix()),
+            left: range.start.map(|p| p.encode_prefix()),
+            right: range.end.map(|p| p.encode_prefix()),
         };
         self
     }
 
-    fn range(mut self, range: Range<Bound<PrefixOrKey<StoreKey<'a, Idx, PrimaryKey, Record>, KeyPrefix>>>) -> Self {
+    fn range(
+        mut self,
+        range: Range<Bound<PrefixOrKey<StoreKey<'a, Idx, PrimaryKey, Record>, KeyPrefix>>>,
+    ) -> Self {
         self.range = ScanRange::Range {
-            left: range.start.map(|p |p.encode()),
-            right: range.end.map(|p |p.encode()),
+            left: range.start.map(|p| p.encode()),
+            right: range.end.map(|p| p.encode()),
         };
         self
     }
