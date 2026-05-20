@@ -114,6 +114,7 @@ pub struct Here;
 pub struct There<Tail>(PhantomData<Tail>);
 pub struct Cons<Head, Tail>(PhantomData<(Head, Tail)>);
 
+/// IndexRegistry is a recursive HList trait to allow defining multiple indexes as generic types.
 pub trait IndexRegistry<PK: Key, T: HasKey<PK>> {
     fn set<DB: MultiStoreWriteHandle>(db: &mut DB, old: Option<(&PK, &T)>, new: (&PK, &T)) -> Result<(), Error>;
     fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PK, &T)) -> Result<(), Error>;
@@ -147,3 +148,13 @@ where
         Tail::remove(db, target)
     }
 }
+
+/// ContainsIndex is used check the presence of an index in the registry HList.
+pub trait ContainsIndex<I, Proof> {}
+
+impl<I, Tail> ContainsIndex<I, Here> for Cons<I, Tail> {}
+
+impl<I, Head, Tail, Proof> ContainsIndex<I, There<Proof>> for Cons<Head, Tail>
+where
+    Tail: ContainsIndex<I, Proof>,
+{}
