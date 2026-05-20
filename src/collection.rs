@@ -32,7 +32,20 @@ where
     }
 
     pub fn insert(&self, value: Record) -> Result<(), Error> {
-        Ok(())
+        let pk = value.key().encode();
+        let mut tx = self.db.write()?;
+
+        {
+            let mut store = tx.open_store(&self.name)?;
+
+            if let Some(_) = store.get(&pk)? {
+                Err(Error::AlreadyExists(self.name.clone()))?
+            }
+
+            store.set(&pk, &value.to_bytes()?)?;
+        }
+
+        tx.commit().map_err(|e| Error::Backend(e.into()))
     }
 
     pub fn get(&self, key: PrimaryKey) -> Result<Option<Record>, Error> {
