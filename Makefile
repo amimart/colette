@@ -54,6 +54,14 @@ audit: ## Run security audit
 	@printf "$(COLOR_YELLOW)$(BOLD)🔒 Running security audit...$(COLOR_RESET)\n"
 	cargo audit
 
+## Fix:
+fix: fix-rust fix-md ## Auto-fix all (yaml has no auto-fixer)
+
+fix-rust: ## Auto-fix Rust formatting and clippy lints
+	@printf "$(COLOR_CYAN)$(BOLD)🔧 Fixing Rust...$(COLOR_RESET)\n"
+	cargo fmt
+	cargo clippy --fix --allow-dirty
+
 ## Clean:
 clean: ## Clean all build artifacts and local deployment
 	rm -rf $(TARGET_FOLDER)
