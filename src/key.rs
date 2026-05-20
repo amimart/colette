@@ -211,3 +211,28 @@ where
         out
     }
 }
+
+#[macro_export]
+macro_rules! key_enum {
+    ($ty:ty as $int:ty { $($variant:path => $value:expr),+ $(,)? }) => {
+        impl Key for $ty {
+            const SIZE: KeySize = KeySize::Fixed(std::mem::size_of::<$int>());
+
+            fn encode_into(&self, out: &mut Vec<u8>) {
+                let value: $int = match self {
+                    $($variant => $value,)+
+                };
+
+                value.encode_into(out);
+            }
+
+            fn encode(&self) -> Vec<u8> {
+                let value: $int = match self {
+                    $($variant => $value,)+
+                };
+
+                value.encode()
+            }
+        }
+    };
+}
