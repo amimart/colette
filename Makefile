@@ -29,6 +29,10 @@ lint-rust-format: ## Lint Rust formatting
 	@printf "$(COLOR_CYAN)$(BOLD)🎨 Checking formatting...$(COLOR_RESET)\n"
 	cargo fmt --check
 
+lint-md: ## Lint Markdown
+	@printf "$(COLOR_CYAN)$(BOLD)📝 Linting Markdown...$(COLOR_RESET)\n"
+	npx markdownlint-cli2 "**/*.md"
+
 ## Clean:
 clean: ## Clean all build artifacts and local deployment
 	rm -rf $(TARGET_FOLDER)
