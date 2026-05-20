@@ -62,6 +62,10 @@ fix-rust: ## Auto-fix Rust formatting and clippy lints
 	cargo fmt
 	cargo clippy --fix --allow-dirty
 
+fix-md: ## Auto-fix Markdown
+	@printf "$(COLOR_CYAN)$(BOLD)🔧 Fixing Markdown...$(COLOR_RESET)\n"
+	npx markdownlint-cli2 --fix "**/*.md"
+
 ## Clean:
 clean: ## Clean all build artifacts and local deployment
 	rm -rf $(TARGET_FOLDER)
