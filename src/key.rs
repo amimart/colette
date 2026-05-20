@@ -39,3 +39,33 @@ impl<K: Key + ?Sized> Key for (K,) {
         self.0.encode()
     }
 }
+
+#[macro_export]
+macro_rules! key_fixed {
+    ($type:ty, $encode:expr) => {
+        impl Key for $type {
+            const SIZE: KeySize = KeySize::Fixed(std::mem::size_of::<Self>());
+
+            fn encode_into(&self, out: &mut Vec<u8>) {
+                out.extend_from_slice(&$encode(*self));
+            }
+
+            fn encode(&self) -> Vec<u8> {
+                $encode(*self).to_vec()
+            }
+        }
+    };
+}
+
+key_fixed!(u8, u8::to_be_bytes);
+key_fixed!(u16, u16::to_be_bytes);
+key_fixed!(u32, u32::to_be_bytes);
+key_fixed!(u64, u64::to_be_bytes);
+key_fixed!(u128, u128::to_be_bytes);
+key_fixed!(i8, i8::to_be_bytes);
+key_fixed!(i16, i16::to_be_bytes);
+key_fixed!(i32, i32::to_be_bytes);
+key_fixed!(i64, i64::to_be_bytes);
+key_fixed!(i128, i128::to_be_bytes);
+key_fixed!(f32, f32::to_be_bytes);
+key_fixed!(f64, f64::to_be_bytes);
