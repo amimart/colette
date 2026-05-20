@@ -13,6 +13,9 @@ pub enum Error {
 
     #[error("serialization error: {0}")]
     Codec(#[from] CodecError),
+
+    #[error("unexpected error: {0}")]
+    Unexpected(String),
 }
 
 #[derive(Debug, thiserror::Error)]
