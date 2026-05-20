@@ -67,4 +67,13 @@ where
     pub fn remove(&self, key: PrimaryKey) -> Result<(), Error> {
         Ok(())
     }
+
+    pub fn index<Idx, P>(&self, _idx: Idx) -> Result<IndexScan<DB::ReadHandle<'_>, PrimaryKey, Record, Idx>, Error>
+    where
+        Idx: Index<PrimaryKey, Record>,
+        Idx::Kind: IndexKind<Idx::Key, PrimaryKey>,
+        Indexes: ContainsIndex<Idx, P>,
+    {
+        Ok(IndexScan::new(self.db.read()?))
+    }
 }
