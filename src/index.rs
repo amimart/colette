@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use crate::store::{MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
 use crate::error::Error;
-use crate::key::{HasKey, Key};
+use crate::key::{AppendKey, HasKey, Key};
 
 /// Index allows to maintain a separate query efficient stores on non primary-key, it is made for
 /// a specific Entity and specified by a Key to index extracted from an Entity, and an IndexKind
@@ -89,5 +89,22 @@ where
 
     fn store_key<'a>(k: &'a IndexKey, _pk: &'a PrimaryKey) -> Self::StoreKey<'a> {
         k
+    }
+}
+
+pub struct Multi;
+
+impl<IndexKey, PrimaryKey> IndexKind<IndexKey, PrimaryKey> for Multi
+where
+    IndexKey: Key + AppendKey<PrimaryKey>,
+    PrimaryKey: Key,
+{
+    type StoreKey<'a> = <IndexKey as AppendKey<PrimaryKey>>::Key<'a>
+    where
+        IndexKey: 'a,
+        PrimaryKey: 'a;
+
+    fn store_key<'a>(k: &'a IndexKey, pk: &'a PrimaryKey) -> Self::StoreKey<'a> {
+        k.append(pk)
     }
 }
