@@ -108,3 +108,8 @@ where
         k.append(pk)
     }
 }
+
+pub struct Nil;
+pub struct Here;
+pub struct There<Tail>(PhantomData<Tail>);
+pub struct Cons<Head, Tail>(PhantomData<(Head, Tail)>);
