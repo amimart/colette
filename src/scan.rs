@@ -1,8 +1,10 @@
 use crate::entity::Entity;
+use crate::error::Error;
 use crate::index::{Index, IndexKind, StoreKey};
+use crate::iter::IndexIterator;
 use crate::key::Key;
 use crate::prefix::{Prefix, Prefixable};
-use crate::store::MultiStoreReadHandle;
+use crate::store::{MultiStoreReadHandle, ReadKVStore};
 use std::marker::PhantomData;
 use std::ops::{Bound, Range};
 
@@ -47,6 +49,7 @@ where
     Idx::Kind: IndexKind<Idx::Key, PrimaryKey>,
     Self: 'a,
 {
+    collection_name: String,
     read_handle: ReadHandle,
     range: ScanRange,
     direction: Direction,
@@ -63,8 +66,9 @@ where
     Idx: Index<PrimaryKey, Record>,
     Idx::Kind: IndexKind<Idx::Key, PrimaryKey>,
 {
-    pub fn new(read_handle: ReadHandle) -> Self {
+    pub fn new(collection_name: String, read_handle: ReadHandle) -> Self {
         Self {
+            collection_name,
             read_handle,
             range: ScanRange::All,
             direction: Direction::LeftToRight,
@@ -90,6 +94,15 @@ where
     pub fn after(mut self, cursor: StoreKey<'a, Idx, PrimaryKey, Record>) -> Self {
         self.after = Some(cursor);
         self
+    }
+
+    pub fn iter(self) -> Result<IndexIterator<ReadHandle::Store, PrimaryKey, Record>, Error> {
+        Ok(IndexIterator::new(
+            self.read_handle
+                .open_store(Idx::NAME)?
+                .scan(self.range, self.direction)?,
+            self.read_handle.open_store(&self.collection_name)?,
+        ))
     }
 }
 
