@@ -113,3 +113,37 @@ pub struct Nil;
 pub struct Here;
 pub struct There<Tail>(PhantomData<Tail>);
 pub struct Cons<Head, Tail>(PhantomData<(Head, Tail)>);
+
+pub trait IndexRegistry<PK: Key, T: HasKey<PK>> {
+    fn set<DB: MultiStoreWriteHandle>(db: &mut DB, old: Option<(&PK, &T)>, new: (&PK, &T)) -> Result<(), Error>;
+    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PK, &T)) -> Result<(), Error>;
+}
+
+impl<PK: Key, T: HasKey<PK>> IndexRegistry<PK, T> for Nil {
+    fn set<DB: MultiStoreWriteHandle>(_db: &mut DB, _old: Option<(&PK, &T)>, _new: (&PK, &T)) -> Result<(), Error> {
+        Ok(())
+    }
+
+    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PK, &T)) -> Result<(), Error>{
+        Ok(())
+    }
+}
+
+impl<PK, T, Head, Tail> IndexRegistry<PK, T> for Cons<Head, Tail>
+where
+    PK: Key,
+    T: HasKey<PK>,
+    Head: Index<PK, T>,
+    Head::Kind: IndexKind<Head::Key, PK>,
+    Tail: IndexRegistry<PK, T>,
+{
+    fn set<DB: MultiStoreWriteHandle>(db: &mut DB, old: Option<(&PK, &T)>, new: (&PK, &T)) -> Result<(), Error> {
+        Head::set(db, old, new)?;
+        Tail::set(db, old, new)
+    }
+
+    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PK, &T)) -> Result<(), Error>{
+        Head::remove(db, target)?;
+        Tail::remove(db, target)
+    }
+}
