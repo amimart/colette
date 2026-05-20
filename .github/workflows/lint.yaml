@@ -55,3 +55,15 @@ jobs:
       - uses: wagoid/commitlint-github-action@v6
         with:
           configFile: .commitlintrc.yaml
+
+  lint-yaml:
+    name: Lint (YAML)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Lint YAML
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          file_or_dir: .
+          config_file: .yamllint.yaml
