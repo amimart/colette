@@ -39,3 +39,19 @@ jobs:
         uses: DavidAnson/markdownlint-cli2-action@v23
         with:
           globs: "**/*.md"
+
+  lint-commits:
+    name: Lint (Commits)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: .commitlintrc.yaml
