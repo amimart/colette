@@ -236,3 +236,48 @@ macro_rules! key_enum {
         }
     };
 }
+
+pub trait AppendKey<PK: Key> {
+    type Key<'a>: Key
+    where
+        Self: 'a,
+        PK: 'a;
+
+    fn append<'a>(&'a self, pk: &'a PK) -> Self::Key<'a>;
+}
+
+impl<K: Key, PK: Key> AppendKey<PK> for (K,) {
+    type Key<'a> = (&'a K, &'a PK)
+    where
+        K: 'a,
+        PK: 'a;
+
+    fn append<'a>(&'a self, pk: &'a PK) -> Self::Key<'a> {
+        (&self.0, pk)
+    }
+}
+
+impl<A: Key, B: Key, PK: Key> AppendKey<PK> for (A, B) {
+    type Key<'a> = (&'a A, &'a B, &'a PK)
+    where
+        A: 'a,
+        B: 'a,
+        PK: 'a;
+
+    fn append<'a>(&'a self, pk: &'a PK) -> Self::Key<'a> {
+        (&self.0, &self.1, pk)
+    }
+}
+
+impl<A: Key, B: Key, C: Key, PK: Key> AppendKey<PK> for (A, B, C) {
+    type Key<'a> = (&'a A, &'a B, &'a C, &'a PK)
+    where
+        A: 'a,
+        B: 'a,
+        C: 'a,
+        PK: 'a;
+
+    fn append<'a>(&'a self, pk: &'a PK) -> Self::Key<'a> {
+        (&self.0, &self.1, &self.2, pk)
+    }
+}
