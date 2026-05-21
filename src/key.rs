@@ -80,8 +80,6 @@ pub enum KeySize {
     Variable,
 }
 
-pub trait HasKey<K: Key> {
-    fn key(&self) -> K;
 #[derive(Debug, thiserror::Error)]
 pub enum DecodeKeyError {
     #[error("unexpected end of input")]
