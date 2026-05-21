@@ -158,8 +158,8 @@ impl<K: Key> Key for &K {
         (*self).encode_into(out);
     }
 
-    fn encode(&self) -> Vec<u8> {
-        (*self).encode()
+    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError> {
+        K::decode(bytes)
     }
 }
 
@@ -170,8 +170,8 @@ impl<K: Key> Key for (K,) {
         self.0.encode_into(out);
     }
 
-    fn encode(&self) -> Vec<u8> {
-        self.0.encode()
+    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError> {
+        Ok((K::decode(bytes)?,))
     }
 }
 
