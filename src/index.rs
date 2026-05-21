@@ -128,7 +128,10 @@ pub trait IndexRegistry<PK: Key, T: HasKey<PK>> {
         old: Option<(&PK, &T)>,
         new: (&PK, &T),
     ) -> Result<(), Error>;
+
     fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PK, &T)) -> Result<(), Error>;
+
+    fn has_index(name: &str) -> bool;
 }
 
 impl<PK: Key, T: HasKey<PK>> IndexRegistry<PK, T> for Nil {
@@ -142,6 +145,10 @@ impl<PK: Key, T: HasKey<PK>> IndexRegistry<PK, T> for Nil {
 
     fn remove<DB: MultiStoreWriteHandle>(_db: &mut DB, _target: (&PK, &T)) -> Result<(), Error> {
         Ok(())
+    }
+
+    fn has_index(_name: &str) -> bool {
+        false
     }
 }
 
@@ -166,6 +173,10 @@ where
         Head::remove(db, target)?;
         Tail::remove(db, target)
     }
+
+    fn has_index(name: &str) -> bool {
+        Head::NAME == name || Tail::has_index(name)
+    }
 }
 
 /// ContainsIndex is used check the presence of an index in the registry HList.
@@ -175,5 +186,4 @@ impl<I, Tail> ContainsIndex<I, Here> for Cons<I, Tail> {}
 
 impl<I, Head, Tail, Proof> ContainsIndex<I, There<Proof>> for Cons<Head, Tail> where
     Tail: ContainsIndex<I, Proof>
-{
-}
+{}
