@@ -7,3 +7,4 @@ pub mod key;
 pub mod prefix;
 pub mod scan;
 pub mod store;
+pub mod index_registry;
