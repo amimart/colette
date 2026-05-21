@@ -399,4 +399,32 @@ mod tests {
             assert_eq!(&spy.invoked(), expected_invoked);
         }
     }
+
+    // ── ContainsIndex ─────────────────────────────────────────────────────────
+
+    fn assert_contains<R, I, P>()
+    where
+        R: ContainsIndex<I, P>,
+    {
+    }
+
+    #[test]
+    fn contains_index_at_head() {
+        assert_contains::<Cons<IndexA, Nil>, IndexA, Here>();
+    }
+
+    #[test]
+    fn contains_index_in_tail() {
+        assert_contains::<Cons<IndexA, Cons<IndexB, Nil>>, IndexB, There<Here>>();
+    }
+
+    #[test]
+    fn contains_index_tracks_depth() {
+        struct IndexC;
+        spy_index!(IndexC, "index_c");
+        type R = Cons<IndexA, Cons<IndexB, Cons<IndexC, Nil>>>;
+        assert_contains::<R, IndexA, Here>();
+        assert_contains::<R, IndexB, There<Here>>();
+        assert_contains::<R, IndexC, There<There<Here>>>();
+    }
 }
