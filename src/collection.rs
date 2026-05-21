@@ -34,6 +34,7 @@ where
             _marker: PhantomData,
         }
     }
+
     pub fn builder<K, T>(name: &'static str, db: DB) -> CollectionBuilder<DB, K, T, Nil>
     where
         K: Key,
@@ -120,7 +121,12 @@ where
     where
         Idx: Index<PrimaryKey, Record>,
     {
-        assert!(!Indexes::has_index(Idx::NAME), "index with name '{}' already exists in collection '{}'", Idx::NAME, self.name);
+        assert!(
+            !Indexes::has_index(Idx::NAME),
+            "index with name '{}' already exists in collection '{}'",
+            Idx::NAME,
+            self.name
+        );
         CollectionBuilder::new(self.name, self.db)
     }
 

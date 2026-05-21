@@ -101,7 +101,7 @@ where
             self.read_handle
                 .open_store(Idx::NAME)?
                 .scan(self.range, self.direction)?,
-            self.read_handle.open_store(&self.collection_name)?,
+            self.read_handle.open_store(self.collection_name)?,
         ))
     }
 }

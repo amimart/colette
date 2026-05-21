@@ -186,4 +186,5 @@ impl<I, Tail> ContainsIndex<I, Here> for Cons<I, Tail> {}
 
 impl<I, Head, Tail, Proof> ContainsIndex<I, There<Proof>> for Cons<Head, Tail> where
     Tail: ContainsIndex<I, Proof>
-{}
+{
+}
