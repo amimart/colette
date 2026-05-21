@@ -1,9 +1,77 @@
-pub trait Key: Clone {
+/// A value that can be encoded as an ordered key for Colette stores and indexes.
+///
+/// The encoded representation must preserve the logical ordering of the value.
+///
+/// Encoded keys are used for:
+///
+/// - primary keys;
+/// - secondary indexes;
+/// - range scans;
+/// - prefix scans;
+/// - cursor pagination.
+///
+/// # Ordering
+///
+/// Ordered KV stores compare keys lexicographically. Numeric values should
+/// therefore generally use big-endian encoding.
+///
+/// # Variable-size keys
+///
+/// Variable-size values such as `str`, `String`, `[u8]` or `Vec<u8>` must use
+/// escaping/framing so that composite keys remain unambiguous.
+///
+/// Implementations for variable-size keys should use the helper functions
+/// provided by Colette to encode and decode variable-size key bytes:
+/// - `encode_unsized_key_bytes`;
+/// - `decode_unsized_key_bytes`;
+///
+/// # Composite keys
+///
+/// Composite keys are represented using tuples. Their encoding is obtained by
+/// concatenating the encoding of each component.
+///
+/// # Compatibility
+///
+/// Changing a `Key` implementation changes the physical storage layout and
+/// should be treated as a migration.
+pub trait Key {
+    /// The encoded size of the key.
+    ///
+    /// Fixed-size keys allow Colette to preallocate buffers efficiently.
     const SIZE: KeySize;
 
+    /// Encodes the key into the provided buffer.
+    ///
+    /// Implementations should append their encoded representation to `out`
+    /// without clearing it.
+    ///
+    /// Variable-size keys should use Colette encoding helper (i.e. `encode_unsized_key_bytes`) to
+    /// ensure their encoded representation remains safe for composite keys and prefix scans.
     fn encode_into(&self, out: &mut Vec<u8>);
 
-    fn encode(&self) -> Vec<u8>;
+    /// Decodes a key from its encoded representation.
+    ///
+    /// Implementations should return an error if the input is malformed or
+    /// incomplete.
+    ///
+    /// Variable-size keys should use Colette decoding helper (i.e. `decode_unsized_key_bytes`) to
+    /// decode escaped and framed key bytes correctly.
+    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
+    where
+        Self: Sized;
+
+    /// Encodes the key into a newly allocated buffer.
+    ///
+    /// This is a convenience helper built on top of `encode_into`.
+    fn encode(&self) -> Vec<u8> {
+        let mut out = match Self::SIZE {
+            KeySize::Fixed(size) => Vec::with_capacity(size),
+            KeySize::Variable => Vec::new(),
+        };
+
+        self.encode_into(&mut out);
+        out
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -14,6 +82,16 @@ pub enum KeySize {
 
 pub trait HasKey<K: Key> {
     fn key(&self) -> K;
+#[derive(Debug, thiserror::Error)]
+pub enum DecodeKeyError {
+    #[error("unexpected end of input")]
+    UnexpectedEnd,
+
+    #[error("invalid escape sequence: 0x00 0x{0:02x}")]
+    InvalidEscapeSequence(u8),
+
+    #[error("missing key terminator")]
+    MissingTerminator,
 }
 
 impl<K: Key> Key for &K {
