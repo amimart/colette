@@ -69,5 +69,3 @@ downloads.index(ByStatusAndSize).?
     .after(cursor)
     .iter();
 ```
-
-
