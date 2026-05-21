@@ -92,6 +92,65 @@ pub enum DecodeKeyError {
     MissingTerminator,
 }
 
+/// Encodes variable-size key bytes using Colette escaping and framing rules.
+///
+/// The `0x00` byte is reserved internally:
+///
+/// - `0x00 0xff` represents an escaped `0x00` byte;
+/// - `0x00 0x00` marks the end of the encoded value.
+///
+/// This encoding ensures that variable-size keys remain safe to concatenate
+/// inside composite keys while preserving lexicographic ordering.
+pub fn encode_unsized_key_bytes(bytes: &[u8], out: &mut Vec<u8>) {
+    for &b in bytes {
+        match b {
+            0x00 => out.extend_from_slice(&[0x00, 0xff]),
+            b => out.push(b),
+        }
+    }
+    out.extend_from_slice(&[0x00, 0x00]);
+}
+
+/// Decodes variable-size key bytes encoded with
+/// `encode_unsized_key_bytes`.
+///
+/// Returns an error if the encoded bytes contain invalid escape sequences or
+/// are missing the terminating marker.
+pub fn decode_unsized_key_bytes(bytes: &[u8]) -> Result<Vec<u8>, DecodeKeyError> {
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            0x00 => {
+                let next = bytes
+                    .get(i + 1)
+                    .ok_or(DecodeKeyError::UnexpectedEnd)?;
+                match next {
+                    0x00 => {
+                        // terminator
+                        return Ok(out);
+                    }
+                    0xff => {
+                        // escaped 0x00
+                        out.push(0x00);
+                        i += 2;
+                    }
+                    other => {
+                        return Err(
+                            DecodeKeyError::InvalidEscapeSequence(*other)
+                        );
+                    }
+                }
+            }
+            b => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    Err(DecodeKeyError::MissingTerminator)
+}
+
 impl<K: Key> Key for &K {
     const SIZE: KeySize = K::SIZE;
 
@@ -158,12 +217,6 @@ impl Key for bool {
     }
 }
 
-pub fn encode_key_bytes(bytes: &[u8], out: &mut Vec<u8>) {
-    for &b in bytes {
-        match b {
-            0x00 => out.extend_from_slice(&[0x00, 0xff]),
-            b => out.push(b),
-        }
     }
     out.extend_from_slice(&[0x00, 0x00]);
 }
