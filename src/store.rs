@@ -5,9 +5,9 @@ pub trait MultiStore {
     type ReadHandle: MultiStoreReadHandle;
     type WriteHandle: MultiStoreWriteHandle;
 
-    fn read(&self) -> Result<Self::ReadHandle, BackendError>;
+    fn read(&self, namespace: &str) -> Result<Self::ReadHandle, BackendError>;
 
-    fn write(&self) -> Result<Self::WriteHandle, BackendError>;
+    fn write(&self, namespace: &str) -> Result<Self::WriteHandle, BackendError>;
 }
 
 pub trait MultiStoreReadHandle {

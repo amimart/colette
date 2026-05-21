@@ -28,6 +28,8 @@ where
     Record: Entity<PrimaryKey>,
     Indexes: IndexRegistry<PrimaryKey, Record>,
 {
+    const MAIN_STORE: &'static str = "__main";
+
     pub fn new(name: &'static str, db: DB) -> Self {
         Self {
             name,
@@ -46,10 +48,10 @@ where
 
     pub fn insert(&self, value: Record) -> Result<(), Error> {
         let pk = value.key().encode();
-        let mut tx = self.db.write()?;
+        let mut tx = self.db.write(self.name)?;
 
         {
-            let mut store = tx.open_store(self.name)?;
+            let mut store = tx.open_store(Self::MAIN_STORE)?;
 
             if store.get(&pk)?.is_some() {
                 Err(Error::AlreadyExists(self.name.to_string()))?
@@ -86,7 +88,7 @@ where
         Idx::Kind: IndexKind<Idx::Key, PrimaryKey>,
         Indexes: ContainsIndex<Idx, P>,
     {
-        Ok(IndexScan::new(self.name, self.db.read()?))
+        Ok(IndexScan::new(self.name, self.db.read(self.name)?))
     }
 }
 
