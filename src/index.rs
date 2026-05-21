@@ -188,3 +188,149 @@ impl<I, Head, Tail, Proof> ContainsIndex<I, There<Proof>> for Cons<Head, Tail> w
     Tail: ContainsIndex<I, Proof>
 {
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::{BackendError, Error};
+    use crate::key::HasKey;
+    use crate::scan::{Direction, ScanRange};
+    use crate::store::{MultiStoreWriteHandle, ReadKVStore, ReadWriteKVStore, WriteKVStore};
+
+    // ── Minimal entity ────────────────────────────────────────────────────────
+
+    #[derive(Clone)]
+    struct Record(u32);
+
+    impl HasKey<u32> for Record {
+        fn key(&self) -> u32 {
+            self.0
+        }
+    }
+
+    // ── Mock indexes ──────────────────────────────────────────────────────────
+    // Override set/remove to record invocation via open_store, bypassing the
+    // default implementation so the test stays focused on IndexRegistry dispatch.
+
+    struct IndexA;
+    struct IndexB;
+    struct FailIndex;
+
+    macro_rules! spy_index {
+        ($ty:ty, $name:literal) => {
+            impl Index<u32, Record> for $ty {
+                type Key = u32;
+                type Kind = Unique;
+                const NAME: &'static str = $name;
+                fn key(r: &Record) -> u32 {
+                    r.0
+                }
+                fn set<DB: MultiStoreWriteHandle>(
+                    db: &mut DB,
+                    _old: Option<(&u32, &Record)>,
+                    _new: (&u32, &Record),
+                ) -> Result<(), Error> {
+                    db.open_store(Self::NAME)?;
+                    Ok(())
+                }
+                fn remove<DB: MultiStoreWriteHandle>(
+                    db: &mut DB,
+                    _target: (&u32, &Record),
+                ) -> Result<(), Error> {
+                    db.open_store(Self::NAME)?;
+                    Ok(())
+                }
+            }
+        };
+    }
+
+    spy_index!(IndexA, "index_a");
+    spy_index!(IndexB, "index_b");
+
+    impl Index<u32, Record> for FailIndex {
+        type Key = u32;
+        type Kind = Unique;
+        const NAME: &'static str = "fail";
+        fn key(r: &Record) -> u32 {
+            r.0
+        }
+        fn set<DB: MultiStoreWriteHandle>(
+            _db: &mut DB,
+            _old: Option<(&u32, &Record)>,
+            _new: (&u32, &Record),
+        ) -> Result<(), Error> {
+            Err(Error::Unexpected("injected".into()))
+        }
+        fn remove<DB: MultiStoreWriteHandle>(
+            _db: &mut DB,
+            _target: (&u32, &Record),
+        ) -> Result<(), Error> {
+            Err(Error::Unexpected("injected".into()))
+        }
+    }
+
+    // ── Spy write handle ──────────────────────────────────────────────────────
+    // Records which store names were opened; that is how we observe index dispatch.
+
+    struct NoopStore;
+
+    impl ReadKVStore for NoopStore {
+        type Iter = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>;
+        fn get(&self, _: &[u8]) -> Result<Option<Vec<u8>>, BackendError> {
+            Ok(None)
+        }
+        fn scan(&self, _: ScanRange, _: Direction) -> Result<Self::Iter, BackendError> {
+            Ok(std::iter::empty())
+        }
+    }
+    impl WriteKVStore for NoopStore {
+        fn set(&mut self, _: &[u8], _: &[u8]) -> Result<(), BackendError> {
+            Ok(())
+        }
+        fn remove(&mut self, _: &[u8]) -> Result<(), BackendError> {
+            Ok(())
+        }
+    }
+    impl ReadWriteKVStore for NoopStore {}
+
+    struct Spy(Vec<String>);
+
+    impl Spy {
+        fn new() -> Self {
+            Self(Vec::new())
+        }
+        fn invoked(&self) -> Vec<&str> {
+            self.0.iter().map(String::as_str).collect()
+        }
+    }
+
+    impl MultiStoreWriteHandle for Spy {
+        type Store = NoopStore;
+        fn open_store(&mut self, name: &str) -> Result<NoopStore, BackendError> {
+            self.0.push(name.to_string());
+            Ok(NoopStore)
+        }
+        fn commit(self) -> Result<(), BackendError> {
+            Ok(())
+        }
+    }
+
+    // ── has_index ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn has_index() {
+        let cases: &[(fn(&str) -> bool, &str, bool)] = &[
+            (<Nil as IndexRegistry<u32, Record>>::has_index, "index_a", false),
+            (<Nil as IndexRegistry<u32, Record>>::has_index, "", false),
+            (<Cons<IndexA, Nil> as IndexRegistry<u32, Record>>::has_index, "index_a", true),
+            (<Cons<IndexA, Nil> as IndexRegistry<u32, Record>>::has_index, "index_b", false),
+            (<Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::has_index, "index_a", true),
+            (<Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::has_index, "index_b", true),
+            (<Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::has_index, "nonexistent", false),
+        ];
+
+        for &(has_index, name, expected) in cases {
+            assert_eq!(has_index(name), expected, "has_index({name:?}) should be {expected}");
+        }
+    }
+}
