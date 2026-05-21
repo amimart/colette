@@ -84,6 +84,12 @@ pub enum KeySize {
 
 #[derive(Debug, thiserror::Error)]
 pub enum DecodeKeyError {
+    #[error("invalid size: expected {expected}, got {actual}:")]
+    InvalidSize { expected: usize, actual: usize },
+
+    #[error("invalid bytes: {0}")]
+    InvalidBytes(String),
+
     #[error("unexpected end of input")]
     UnexpectedEnd,
 
@@ -189,14 +195,28 @@ impl_signed_integer_key!(i64 => u64);
 impl_signed_integer_key!(i128 => u128);
 
 impl Key for bool {
-    const SIZE: KeySize = KeySize::Fixed(std::mem::size_of::<u8>());
+    const SIZE: KeySize = KeySize::Fixed(1);
 
     fn encode_into(&self, out: &mut Vec<u8>) {
-        out.push(if *self { 1 } else { 0 });
+        out.push(match self {
+            true => 1,
+            false => 0,
+        });
     }
 
-    fn encode(&self) -> Vec<u8> {
-        vec![if *self { 1 } else { 0 }]
+    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError> {
+        let byte = *bytes.first().ok_or(DecodeKeyError::InvalidSize {
+            expected: 1,
+            actual: 0,
+        })?;
+
+        match byte {
+            0 => Ok(false),
+            1 => Ok(true),
+            value => Err(DecodeKeyError::InvalidBytes(format!(
+                "invalid boolean byte: expected 0 or 1, got {value}"
+            ))),
+        }
     }
 }
 
