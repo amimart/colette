@@ -333,4 +333,37 @@ mod tests {
             assert_eq!(has_index(name), expected, "has_index({name:?}) should be {expected}");
         }
     }
+
+    // ── set ───────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn set() {
+        let record = Record(1);
+        let pk = 1u32;
+
+        let cases: &[(&dyn Fn(&mut Spy) -> Result<(), Error>, &[&str], bool)] = &[
+            (
+                &|s| <Nil as IndexRegistry<u32, Record>>::set(s, None, (&pk, &record)),
+                &[],
+                false,
+            ),
+            (
+                &|s| <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::set(s, None, (&pk, &record)),
+                &["index_a", "index_b"],
+                false,
+            ),
+            (
+                &|s| <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<u32, Record>>::set(s, None, (&pk, &record)),
+                &[],
+                true,
+            ),
+        ];
+
+        for (invoke, expected_invoked, expect_err) in cases {
+            let mut spy = Spy::new();
+            let result = invoke(&mut spy);
+            assert_eq!(result.is_err(), *expect_err);
+            assert_eq!(&spy.invoked(), expected_invoked);
+        }
+    }
 }
