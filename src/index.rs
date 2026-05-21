@@ -1,7 +1,6 @@
 use crate::error::Error;
 use crate::key::{AppendKey, HasKey, Key};
 use crate::store::{MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
-use std::marker::PhantomData;
 
 /// Index allows to maintain a separate query efficient stores on non primary-key, it is made for
 /// a specific Entity and specified by a Key to index extracted from an Entity, and an IndexKind
@@ -114,66 +113,4 @@ where
     fn store_key<'a>(k: &'a IndexKey, pk: &'a PrimaryKey) -> Self::StoreKey<'a> {
         k.append(pk)
     }
-}
-
-pub struct Nil;
-pub struct Here;
-pub struct There<Tail>(PhantomData<Tail>);
-pub struct Cons<Head, Tail>(PhantomData<(Head, Tail)>);
-
-/// IndexRegistry is a recursive HList trait to allow defining multiple indexes as generic types.
-pub trait IndexRegistry<PK: Key, T: HasKey<PK>> {
-    fn set<DB: MultiStoreWriteHandle>(
-        db: &mut DB,
-        old: Option<(&PK, &T)>,
-        new: (&PK, &T),
-    ) -> Result<(), Error>;
-    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PK, &T)) -> Result<(), Error>;
-}
-
-impl<PK: Key, T: HasKey<PK>> IndexRegistry<PK, T> for Nil {
-    fn set<DB: MultiStoreWriteHandle>(
-        _db: &mut DB,
-        _old: Option<(&PK, &T)>,
-        _new: (&PK, &T),
-    ) -> Result<(), Error> {
-        Ok(())
-    }
-
-    fn remove<DB: MultiStoreWriteHandle>(_db: &mut DB, _target: (&PK, &T)) -> Result<(), Error> {
-        Ok(())
-    }
-}
-
-impl<PK, T, Head, Tail> IndexRegistry<PK, T> for Cons<Head, Tail>
-where
-    PK: Key,
-    T: HasKey<PK>,
-    Head: Index<PK, T>,
-    Head::Kind: IndexKind<Head::Key, PK>,
-    Tail: IndexRegistry<PK, T>,
-{
-    fn set<DB: MultiStoreWriteHandle>(
-        db: &mut DB,
-        old: Option<(&PK, &T)>,
-        new: (&PK, &T),
-    ) -> Result<(), Error> {
-        Head::set(db, old, new)?;
-        Tail::set(db, old, new)
-    }
-
-    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PK, &T)) -> Result<(), Error> {
-        Head::remove(db, target)?;
-        Tail::remove(db, target)
-    }
-}
-
-/// ContainsIndex is used check the presence of an index in the registry HList.
-pub trait ContainsIndex<I, Proof> {}
-
-impl<I, Tail> ContainsIndex<I, Here> for Cons<I, Tail> {}
-
-impl<I, Head, Tail, Proof> ContainsIndex<I, There<Proof>> for Cons<Head, Tail> where
-    Tail: ContainsIndex<I, Proof>
-{
 }

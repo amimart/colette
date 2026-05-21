@@ -2,6 +2,7 @@ pub mod collection;
 pub mod entity;
 pub mod error;
 pub mod index;
+pub mod index_registry;
 pub mod iter;
 pub mod key;
 pub mod prefix;

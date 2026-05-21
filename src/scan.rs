@@ -49,7 +49,7 @@ where
     Idx::Kind: IndexKind<Idx::Key, PrimaryKey>,
     Self: 'a,
 {
-    collection_name: String,
+    collection_name: &'static str,
     read_handle: ReadHandle,
     range: ScanRange,
     direction: Direction,
@@ -66,7 +66,7 @@ where
     Idx: Index<PrimaryKey, Record>,
     Idx::Kind: IndexKind<Idx::Key, PrimaryKey>,
 {
-    pub fn new(collection_name: String, read_handle: ReadHandle) -> Self {
+    pub fn new(collection_name: &'static str, read_handle: ReadHandle) -> Self {
         Self {
             collection_name,
             read_handle,
@@ -101,7 +101,7 @@ where
             self.read_handle
                 .open_store(Idx::NAME)?
                 .scan(self.range, self.direction)?,
-            self.read_handle.open_store(&self.collection_name)?,
+            self.read_handle.open_store(self.collection_name)?,
         ))
     }
 }

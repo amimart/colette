@@ -1,6 +1,7 @@
 use crate::entity::Entity;
 use crate::error::Error;
-use crate::index::{ContainsIndex, Index, IndexKind, IndexRegistry};
+use crate::index::{Index, IndexKind};
+use crate::index_registry::{Cons, ContainsIndex, IndexRegistry, Nil};
 use crate::key::Key;
 use crate::scan::IndexScan;
 use crate::store::{MultiStore, MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
@@ -14,7 +15,7 @@ where
     Record: Entity<PrimaryKey>,
     Indexes: IndexRegistry<PrimaryKey, Record>,
 {
-    name: String,
+    name: &'static str,
     db: DB,
 
     _marker: PhantomData<(PrimaryKey, Record, Indexes)>,
@@ -27,7 +28,9 @@ where
     Record: Entity<PrimaryKey>,
     Indexes: IndexRegistry<PrimaryKey, Record>,
 {
-    pub fn new(name: String, db: DB) -> Self {
+    const MAIN_STORE: &'static str = "__main";
+
+    pub fn new(name: &'static str, db: DB) -> Self {
         Self {
             name,
             db,
@@ -35,15 +38,23 @@ where
         }
     }
 
+    pub fn builder<K, T>(name: &'static str, db: DB) -> CollectionBuilder<DB, K, T, Nil>
+    where
+        K: Key,
+        T: Entity<K>,
+    {
+        CollectionBuilder::new(name, db)
+    }
+
     pub fn insert(&self, value: Record) -> Result<(), Error> {
         let pk = value.key().encode();
-        let mut tx = self.db.write()?;
+        let mut tx = self.db.write(self.name)?;
 
         {
-            let mut store = tx.open_store(&self.name)?;
+            let mut store = tx.open_store(Self::MAIN_STORE)?;
 
             if store.get(&pk)?.is_some() {
-                Err(Error::AlreadyExists(self.name.clone()))?
+                Err(Error::AlreadyExists(self.name.to_string()))?
             }
 
             store.set(&pk, &value.to_bytes()?)?;
@@ -77,6 +88,52 @@ where
         Idx::Kind: IndexKind<Idx::Key, PrimaryKey>,
         Indexes: ContainsIndex<Idx, P>,
     {
-        Ok(IndexScan::new(self.name.clone(), self.db.read()?))
+        Ok(IndexScan::new(self.name, self.db.read(self.name)?))
+    }
+}
+
+pub struct CollectionBuilder<DB, PrimaryKey, Record, Indexes>
+where
+    DB: MultiStore,
+    PrimaryKey: Key,
+    Record: Entity<PrimaryKey>,
+    Indexes: IndexRegistry<PrimaryKey, Record>,
+{
+    name: &'static str,
+    db: DB,
+
+    _marker: PhantomData<(PrimaryKey, Record, Indexes)>,
+}
+
+impl<DB, PrimaryKey, Record, Indexes> CollectionBuilder<DB, PrimaryKey, Record, Indexes>
+where
+    DB: MultiStore,
+    PrimaryKey: Key,
+    Record: Entity<PrimaryKey>,
+    Indexes: IndexRegistry<PrimaryKey, Record>,
+{
+    pub fn new(name: &'static str, db: DB) -> Self {
+        Self {
+            name,
+            db,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn with_index<Idx>(self) -> CollectionBuilder<DB, PrimaryKey, Record, Cons<Idx, Indexes>>
+    where
+        Idx: Index<PrimaryKey, Record>,
+    {
+        assert!(
+            !Indexes::has_index(Idx::NAME),
+            "index with name '{}' already exists in collection '{}'",
+            Idx::NAME,
+            self.name
+        );
+        CollectionBuilder::new(self.name, self.db)
+    }
+
+    pub fn build(self) -> Collection<DB, PrimaryKey, Record, Indexes> {
+        Collection::new(self.name, self.db)
     }
 }
