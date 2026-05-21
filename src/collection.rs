@@ -1,11 +1,11 @@
 use crate::entity::Entity;
 use crate::error::Error;
 use crate::index::{Index, IndexKind};
+use crate::index_registry::{Cons, ContainsIndex, IndexRegistry, Nil};
 use crate::key::Key;
 use crate::scan::IndexScan;
 use crate::store::{MultiStore, MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
 use std::marker::PhantomData;
-use crate::index_registry::{Cons, ContainsIndex, IndexRegistry, Nil};
 
 pub struct Collection<DB, PrimaryKey, Record, Indexes>
 where

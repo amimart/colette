@@ -1,7 +1,6 @@
 use crate::error::Error;
 use crate::key::{AppendKey, HasKey, Key};
 use crate::store::{MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
-use std::marker::PhantomData;
 
 /// Index allows to maintain a separate query efficient stores on non primary-key, it is made for
 /// a specific Entity and specified by a Key to index extracted from an Entity, and an IndexKind

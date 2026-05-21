@@ -1,8 +1,8 @@
-use std::marker::PhantomData;
 use crate::error::Error;
 use crate::index::{Index, IndexKind};
 use crate::key::{HasKey, Key};
 use crate::store::MultiStoreWriteHandle;
+use std::marker::PhantomData;
 
 // HList helper types:
 pub struct Nil;
@@ -210,17 +210,45 @@ mod tests {
     #[test]
     fn has_index() {
         let cases: &[(fn(&str) -> bool, &str, bool)] = &[
-            (<Nil as IndexRegistry<u32, Record>>::has_index, "index_a", false),
+            (
+                <Nil as IndexRegistry<u32, Record>>::has_index,
+                "index_a",
+                false,
+            ),
             (<Nil as IndexRegistry<u32, Record>>::has_index, "", false),
-            (<Cons<IndexA, Nil> as IndexRegistry<u32, Record>>::has_index, "index_a", true),
-            (<Cons<IndexA, Nil> as IndexRegistry<u32, Record>>::has_index, "index_b", false),
-            (<Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::has_index, "index_a", true),
-            (<Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::has_index, "index_b", true),
-            (<Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::has_index, "nonexistent", false),
+            (
+                <Cons<IndexA, Nil> as IndexRegistry<u32, Record>>::has_index,
+                "index_a",
+                true,
+            ),
+            (
+                <Cons<IndexA, Nil> as IndexRegistry<u32, Record>>::has_index,
+                "index_b",
+                false,
+            ),
+            (
+                <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::has_index,
+                "index_a",
+                true,
+            ),
+            (
+                <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::has_index,
+                "index_b",
+                true,
+            ),
+            (
+                <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::has_index,
+                "nonexistent",
+                false,
+            ),
         ];
 
         for &(has_index, name, expected) in cases {
-            assert_eq!(has_index(name), expected, "has_index({name:?}) should be {expected}");
+            assert_eq!(
+                has_index(name),
+                expected,
+                "has_index({name:?}) should be {expected}"
+            );
         }
     }
 
@@ -238,12 +266,24 @@ mod tests {
                 false,
             ),
             (
-                &|s| <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::set(s, None, (&pk, &record)),
+                &|s| {
+                    <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::set(
+                        s,
+                        None,
+                        (&pk, &record),
+                    )
+                },
                 &["index_a", "index_b"],
                 false,
             ),
             (
-                &|s| <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<u32, Record>>::set(s, None, (&pk, &record)),
+                &|s| {
+                    <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<u32, Record>>::set(
+                        s,
+                        None,
+                        (&pk, &record),
+                    )
+                },
                 &[],
                 true,
             ),
@@ -271,12 +311,22 @@ mod tests {
                 false,
             ),
             (
-                &|s| <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::remove(s, (&pk, &record)),
+                &|s| {
+                    <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::remove(
+                        s,
+                        (&pk, &record),
+                    )
+                },
                 &["index_a", "index_b"],
                 false,
             ),
             (
-                &|s| <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<u32, Record>>::remove(s, (&pk, &record)),
+                &|s| {
+                    <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<u32, Record>>::remove(
+                        s,
+                        (&pk, &record),
+                    )
+                },
                 &[],
                 true,
             ),
