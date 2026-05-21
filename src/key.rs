@@ -1,3 +1,5 @@
+use crate::{impl_signed_integer_key, impl_unsigned_integer_key};
+
 /// A value that can be encoded as an ordered key for Colette stores and indexes.
 ///
 /// The encoded representation must preserve the logical ordering of the value.
@@ -175,35 +177,16 @@ impl<K: Key> Key for (K,) {
     }
 }
 
-#[macro_export]
-macro_rules! key_fixed {
-    ($type:ty, $encode:expr) => {
-        impl Key for $type {
-            const SIZE: KeySize = KeySize::Fixed(std::mem::size_of::<Self>());
-
-            fn encode_into(&self, out: &mut Vec<u8>) {
-                out.extend_from_slice(&$encode(*self));
-            }
-
-            fn encode(&self) -> Vec<u8> {
-                $encode(*self).to_vec()
-            }
-        }
-    };
-}
-
-key_fixed!(u8, u8::to_be_bytes);
-key_fixed!(u16, u16::to_be_bytes);
-key_fixed!(u32, u32::to_be_bytes);
-key_fixed!(u64, u64::to_be_bytes);
-key_fixed!(u128, u128::to_be_bytes);
-key_fixed!(i8, i8::to_be_bytes);
-key_fixed!(i16, i16::to_be_bytes);
-key_fixed!(i32, i32::to_be_bytes);
-key_fixed!(i64, i64::to_be_bytes);
-key_fixed!(i128, i128::to_be_bytes);
-key_fixed!(f32, f32::to_be_bytes);
-key_fixed!(f64, f64::to_be_bytes);
+impl_unsigned_integer_key!(u8);
+impl_unsigned_integer_key!(u16);
+impl_unsigned_integer_key!(u32);
+impl_unsigned_integer_key!(u64);
+impl_unsigned_integer_key!(u128);
+impl_signed_integer_key!(i8 => u8);
+impl_signed_integer_key!(i16 => u16);
+impl_signed_integer_key!(i32 => u32);
+impl_signed_integer_key!(i64 => u64);
+impl_signed_integer_key!(i128 => u128);
 
 impl Key for bool {
     const SIZE: KeySize = KeySize::Fixed(std::mem::size_of::<u8>());
