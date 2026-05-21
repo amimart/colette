@@ -1,6 +1,6 @@
 use crate::entity::Entity;
 use crate::error::Error;
-use crate::index::{ContainsIndex, Index, IndexKind, IndexRegistry};
+use crate::index::{Cons, ContainsIndex, Index, IndexKind, IndexRegistry, Nil};
 use crate::key::Key;
 use crate::scan::IndexScan;
 use crate::store::{MultiStore, MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
@@ -14,7 +14,7 @@ where
     Record: Entity<PrimaryKey>,
     Indexes: IndexRegistry<PrimaryKey, Record>,
 {
-    name: String,
+    name: &'static str,
     db: DB,
 
     _marker: PhantomData<(PrimaryKey, Record, Indexes)>,
@@ -27,7 +27,7 @@ where
     Record: Entity<PrimaryKey>,
     Indexes: IndexRegistry<PrimaryKey, Record>,
 {
-    pub fn new(name: String, db: DB) -> Self {
+    pub fn new(name: &'static str, db: DB) -> Self {
         Self {
             name,
             db,
@@ -40,10 +40,10 @@ where
         let mut tx = self.db.write()?;
 
         {
-            let mut store = tx.open_store(&self.name)?;
+            let mut store = tx.open_store(self.name)?;
 
             if store.get(&pk)?.is_some() {
-                Err(Error::AlreadyExists(self.name.clone()))?
+                Err(Error::AlreadyExists(self.name.to_string()))?
             }
 
             store.set(&pk, &value.to_bytes()?)?;
@@ -77,6 +77,6 @@ where
         Idx::Kind: IndexKind<Idx::Key, PrimaryKey>,
         Indexes: ContainsIndex<Idx, P>,
     {
-        Ok(IndexScan::new(self.name.clone(), self.db.read()?))
+        Ok(IndexScan::new(self.name, self.db.read()?))
     }
 }
