@@ -220,19 +220,20 @@ impl Key for bool {
     }
 }
 
-    }
-    out.extend_from_slice(&[0x00, 0x00]);
-}
-
 impl Key for String {
     const SIZE: KeySize = KeySize::Variable;
 
     fn encode_into(&self, out: &mut Vec<u8>) {
-        out.extend_from_slice(self.as_bytes());
+        encode_unsized_key_bytes(self.as_bytes(), out);
     }
 
-    fn encode(&self) -> Vec<u8> {
-        self.as_bytes().to_vec()
+    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
+    where
+        Self: Sized
+    {
+        let bytes = decode_unsized_key_bytes(bytes)?;
+        String::from_utf8(bytes)
+            .map_err(|_| DecodeKeyError::InvalidBytes("invalid UTF-8 bytes".to_owned()))
     }
 }
 
