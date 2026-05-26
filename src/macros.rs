@@ -49,3 +49,34 @@ macro_rules! impl_signed_integer_key {
         }
     };
 }
+
+#[macro_export]
+macro_rules! impl_enum_key {
+    ($ty:ty as $int:ty { $($variant:path => $value:expr),+ $(,)? }) => {
+        impl Key for $ty {
+            const SIZE: KeySize = KeySize::Fixed(std::mem::size_of::<$int>());
+
+            fn encode_into(&self, out: &mut Vec<u8>) {
+                let value: $int = match self {
+                    $($variant => $value,)+
+                };
+
+                value.encode_into(out);
+            }
+
+            fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
+            where
+                Self: Sized
+            {
+                let value = <$int>::decode(bytes)?;
+                match value {
+                    $($value => Ok($variant),)+
+                    _ => Err(DecodeKeyError::InvalidBytes(format!(
+                        "invalid enum discriminant {value} for type {}",
+                        stringify!($ty)
+                    ))),
+                }
+            }
+        }
+    };
+}
