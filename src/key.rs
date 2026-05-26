@@ -265,11 +265,14 @@ impl Key for Vec<u8> {
     const SIZE: KeySize = KeySize::Variable;
 
     fn encode_into(&self, out: &mut Vec<u8>) {
-        out.extend_from_slice(self);
+        encode_unsized_key_bytes(self.as_slice(), out);
     }
 
-    fn encode(&self) -> Vec<u8> {
-        self.to_vec()
+    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
+    where
+        Self: Sized
+    {
+        decode_unsized_key_bytes(bytes)
     }
 }
 
