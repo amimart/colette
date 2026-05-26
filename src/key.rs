@@ -233,7 +233,9 @@ impl Key for String {
     {
         let bytes = decode_unsized_key_bytes(bytes)?;
         String::from_utf8(bytes)
-            .map_err(|_| DecodeKeyError::InvalidBytes("invalid UTF-8 bytes".to_owned()))
+            .map_err(|e| DecodeKeyError::InvalidBytes(format!(
+                "invalid utf-8 string bytes: {e}"
+            )))
     }
 }
 
@@ -242,6 +244,16 @@ impl<const S: usize> Key for [u8; S] {
 
     fn encode_into(&self, out: &mut Vec<u8>) {
         out.extend_from_slice(self);
+    }
+
+    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
+    where
+        Self: Sized
+    {
+        bytes.try_into().map_err(|_| DecodeKeyError::InvalidSize {
+            expected: S,
+            actual: bytes.len(),
+        })
     }
 
     fn encode(&self) -> Vec<u8> {
