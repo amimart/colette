@@ -291,14 +291,14 @@ where
         self.1.encode_into(out);
     }
 
-    fn encode(&self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(match Self::SIZE {
-            KeySize::Fixed(s) => s,
-            KeySize::Variable => 0,
-        });
-
-        self.encode_into(&mut out);
-        out
+    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
+    where
+        Self: Sized
+    {
+        Ok((
+            A::decode(bytes)?,
+            B::decode(bytes)?,
+        ))
     }
 }
 
@@ -321,14 +321,15 @@ where
         self.2.encode_into(out);
     }
 
-    fn encode(&self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(match Self::SIZE {
-            KeySize::Fixed(s) => s,
-            KeySize::Variable => 0,
-        });
-
-        self.encode_into(&mut out);
-        out
+    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
+    where
+        Self: Sized
+    {
+        Ok((
+            A::decode(bytes)?,
+            B::decode(bytes)?,
+            C::decode(bytes)?,
+        ))
     }
 }
 
@@ -353,14 +354,16 @@ where
         self.3.encode_into(out);
     }
 
-    fn encode(&self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(match Self::SIZE {
-            KeySize::Fixed(s) => s,
-            KeySize::Variable => 0,
-        });
-
-        self.encode_into(&mut out);
-        out
+    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
+    where
+        Self: Sized
+    {
+        Ok((
+            A::decode(bytes)?,
+            B::decode(bytes)?,
+            C::decode(bytes)?,
+            D::decode(bytes)?,
+        ))
     }
 }
 
