@@ -53,6 +53,24 @@ where
 {
 }
 
+impl<A, B, C, D> Prefixable<A> for (A, B, C, D)
+where
+    A: Key,
+    B: Key,
+    C: Key,
+    D: Key,
+{
+}
+
+impl<A, B, C, D> Prefixable<(A, B)> for (A, B, C, D)
+where
+    A: Key,
+    B: Key,
+    C: Key,
+    D: Key,
+{
+}
+
 impl<A, B, C, D> Prefixable<(A, B, C)> for (A, B, C, D)
 where
     A: Key,
