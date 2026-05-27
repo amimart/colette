@@ -63,9 +63,10 @@ macro_rules! impl_enum_key {
                 Self: 'a;
 
             fn encode(&self) -> Self::EncodedBytes<'_> {
-                match self {
+                let v: $int = match self {
                     $($variant => $value,)+
-                }.to_be_bytes()
+                };
+                v.to_be_bytes()
             }
 
             fn decode_part(bytes: &[u8]) -> (Self::OwnedKey, &[u8]) {
