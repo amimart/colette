@@ -896,4 +896,110 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn encode_tuples() {
+        // (A, B) fixed-size: fields concatenated in order
+        let cases: &[((u32, u8), &[u8])] = &[
+            ((0, 0), &[0x00, 0x00, 0x00, 0x00, 0x00]),
+            ((1, 2), &[0x00, 0x00, 0x00, 0x01, 0x02]),
+            ((u32::MAX, u8::MAX), &[0xff, 0xff, 0xff, 0xff, 0xff]),
+        ];
+        for (value, expected) in cases {
+            assert_eq!(value.encode().as_slice(), *expected, "(u32,u8)::encode({value:?})");
+        }
+
+        // (A, B) variable-size: variable-field framing is preserved
+        assert_eq!(
+            ("hi".to_string(), 1u8).encode().as_slice(),
+            &[0x68, 0x69, 0xff, 0x01]
+        );
+        assert_eq!(
+            (1u8, vec![0x00u8, 0x42]).encode().as_slice(),
+            &[0x01, 0x00, 0xff, 0x42, 0x00, 0x00]
+        );
+
+        // (A, B, C) fixed-size
+        let cases: &[((u8, bool, u8), &[u8])] = &[
+            ((1, false, 2), &[0x01, 0x00, 0x02]),
+            ((0, true, 255), &[0x00, 0x01, 0xff]),
+        ];
+        for (value, expected) in cases {
+            assert_eq!(value.encode().as_slice(), *expected, "(u8,bool,u8)::encode({value:?})");
+        }
+
+        // (A, B, C) variable-size: Vec<u8> in the middle, framing separates it from last field
+        assert_eq!(
+            (1u8, vec![0x42u8], 2u8).encode().as_slice(),
+            &[0x01, 0x42, 0x00, 0x00, 0x02]
+        );
+
+        // (A, B, C, D) fixed-size
+        let cases: &[((u8, bool, u8, bool), &[u8])] = &[
+            ((1, true, 2, false), &[0x01, 0x01, 0x02, 0x00]),
+            ((0, false, 0, false), &[0x00, 0x00, 0x00, 0x00]),
+        ];
+        for (value, expected) in cases {
+            assert_eq!(value.encode().as_slice(), *expected, "(u8,bool,u8,bool)::encode({value:?})");
+        }
+
+        // (A, B, C, D) variable-size: String in second position
+        assert_eq!(
+            (1u8, "hi".to_string(), 2u8, true).encode().as_slice(),
+            &[0x01, 0x68, 0x69, 0xff, 0x02, 0x01]
+        );
+    }
+
+    #[test]
+    fn decode_part_tuples() {
+        // (A, B) fixed-size: remainder threaded correctly
+        let cases: &[(&[u8], (u32, u8), &[u8])] = &[
+            (&[0x00, 0x00, 0x00, 0x01, 0x02], (1, 2), &[]),
+            (&[0xff, 0xff, 0xff, 0xff, 0xff], (u32::MAX, u8::MAX), &[]),
+            (&[0x00, 0x00, 0x00, 0x01, 0x02, 0xde, 0xad], (1, 2), &[0xde, 0xad]),
+        ];
+        for &(bytes, expected, remainder) in cases {
+            let (value, rest) = <(u32, u8)>::decode_part(bytes);
+            assert_eq!(value, expected, "(u32,u8)::decode_part({bytes:02x?}) value");
+            assert_eq!(rest, remainder, "(u32,u8)::decode_part({bytes:02x?}) remainder");
+        }
+
+        // (A, B) variable-size: variable-field framing consumed, remainder is correct
+        let (value, rest) = <(String, u8)>::decode_part(&[0x68, 0x69, 0xff, 0x01, 0xde, 0xad]);
+        assert_eq!(value, ("hi".to_string(), 1u8));
+        assert_eq!(rest, &[0xde, 0xad]);
+
+        // (A, B, C) fixed-size
+        let cases: &[(&[u8], (u8, bool, u8), &[u8])] = &[
+            (&[0x01, 0x00, 0x02], (1, false, 2), &[]),
+            (&[0x00, 0x01, 0xff, 0xca, 0xfe], (0, true, 255), &[0xca, 0xfe]),
+        ];
+        for &(bytes, expected, remainder) in cases {
+            let (value, rest) = <(u8, bool, u8)>::decode_part(bytes);
+            assert_eq!(value, expected, "(u8,bool,u8)::decode_part({bytes:02x?}) value");
+            assert_eq!(rest, remainder, "(u8,bool,u8)::decode_part({bytes:02x?}) remainder");
+        }
+
+        // (A, B, C) variable-size: framing of middle field cleanly separates fields
+        let (value, rest) = <(u8, Vec<u8>, u8)>::decode_part(&[0x01, 0x42, 0x00, 0x00, 0x02, 0xbe, 0xef]);
+        assert_eq!(value, (1u8, vec![0x42u8], 2u8));
+        assert_eq!(rest, &[0xbe, 0xef]);
+
+        // (A, B, C, D) fixed-size
+        let cases: &[(&[u8], (u8, bool, u8, bool), &[u8])] = &[
+            (&[0x01, 0x01, 0x02, 0x00], (1, true, 2, false), &[]),
+            (&[0x00, 0x00, 0x00, 0x00, 0xab], (0, false, 0, false), &[0xab]),
+        ];
+        for &(bytes, expected, remainder) in cases {
+            let (value, rest) = <(u8, bool, u8, bool)>::decode_part(bytes);
+            assert_eq!(value, expected, "(u8,bool,u8,bool)::decode_part({bytes:02x?}) value");
+            assert_eq!(rest, remainder, "(u8,bool,u8,bool)::decode_part({bytes:02x?}) remainder");
+        }
+
+        // (A, B, C, D) variable-size
+        let (value, rest) = <(u8, String, u8, bool)>::decode_part(&[0x01, 0x68, 0x69, 0xff, 0x02, 0x01, 0xee]);
+        assert_eq!(value, (1u8, "hi".to_string(), 2u8, true));
+        assert_eq!(rest, &[0xee]);
+    }
 }
+
