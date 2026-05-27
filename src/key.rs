@@ -458,3 +458,84 @@ impl<A: Key, B: Key, C: Key, PK: Key> AppendKey<PK> for (A, B, C) {
         (self.0, self.1, self.2, pk)
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn encode_unsized_key_bytes() {
+        // (input, expected_encoded)
+        let cases: &[(&[u8], &[u8])] = &[
+            (&[], &[0x00, 0x00]),
+            (&[0x01, 0x02, 0x03], &[0x01, 0x02, 0x03, 0x00, 0x00]),
+            (&[0xff, 0xfe], &[0xff, 0xfe, 0x00, 0x00]),
+            // null bytes are escaped to [0x00, 0xff]
+            (&[0x00], &[0x00, 0xff, 0x00, 0x00]),
+            (&[0x00, 0x00], &[0x00, 0xff, 0x00, 0xff, 0x00, 0x00]),
+            (&[0x01, 0x00, 0x02], &[0x01, 0x00, 0xff, 0x02, 0x00, 0x00]),
+        ];
+
+        for (input, expected) in cases {
+            let mut out = Vec::new();
+            super::encode_unsized_key_bytes(input, &mut out);
+            assert_eq!(out, *expected, "encode({input:02x?})");
+        }
+    }
+
+    #[test]
+    fn decode_unsized_key_bytes() {
+        // (encoded, expected_decoded, expected_remainder)
+        let cases: &[(&[u8], &[u8], &[u8])] = &[
+            (&[0x00, 0x00], &[], &[]),
+            (&[0x01, 0x02, 0x03, 0x00, 0x00], &[0x01, 0x02, 0x03], &[]),
+            (&[0xff, 0xfe, 0x00, 0x00], &[0xff, 0xfe], &[]),
+            // escaped null bytes are decoded back to 0x00
+            (&[0x00, 0xff, 0x00, 0x00], &[0x00], &[]),
+            (&[0x00, 0xff, 0x00, 0xff, 0x00, 0x00], &[0x00, 0x00], &[]),
+            (&[0x01, 0x00, 0xff, 0x02, 0x00, 0x00], &[0x01, 0x00, 0x02], &[]),
+            // bytes after the terminator are returned as remainder
+            (&[0x00, 0x00, 0x42], &[], &[0x42]),
+            (&[0x01, 0x00, 0x00, 0x02, 0x03], &[0x01], &[0x02, 0x03]),
+        ];
+
+        for (encoded, expected_value, expected_remainder) in cases {
+            let (value, remainder) = super::decode_unsized_key_bytes(encoded);
+            assert_eq!(value, *expected_value, "decode({encoded:02x?}) value");
+            assert_eq!(remainder, *expected_remainder, "decode({encoded:02x?}) remainder");
+        }
+
+        let panic_cases: &[&[u8]] = &[
+            &[],              // empty — no terminator
+            &[0x01, 0x02],    // missing terminator
+            &[0x00, 0x01],    // invalid escape sequence
+        ];
+
+        for &input in panic_cases {
+            assert!(
+                std::panic::catch_unwind(|| super::decode_unsized_key_bytes(input)).is_err(),
+                "expected panic for input {input:02x?}"
+            );
+        }
+    }
+
+    #[test]
+    fn encode_decode_round_trip() {
+        let cases: &[&[u8]] = &[
+            &[],
+            &[0x01, 0x02, 0x03],
+            &[0xff],
+            &[0x00],
+            &[0x00, 0x00],
+            &[0x01, 0x00, 0x02],
+            &[0x00, 0x01, 0x00, 0xff, 0x00],
+        ];
+
+        for &input in cases {
+            let mut encoded = Vec::new();
+            super::encode_unsized_key_bytes(input, &mut encoded);
+            let (decoded, remainder) = super::decode_unsized_key_bytes(&encoded);
+            assert_eq!(decoded, input, "round-trip({input:02x?})");
+            assert!(remainder.is_empty(), "unexpected remainder after round-trip");
+        }
+    }
+}
