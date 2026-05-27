@@ -608,11 +608,7 @@ mod tests {
     #[test]
     fn encode_integers() {
         // u8 — big-endian (1 byte)
-        let cases: &[(u8, &[u8])] = &[
-            (0, &[0x00]),
-            (1, &[0x01]),
-            (u8::MAX, &[0xff]),
-        ];
+        let cases: &[(u8, &[u8])] = &[(0, &[0x00]), (1, &[0x01]), (u8::MAX, &[0xff])];
         for &(value, expected) in cases {
             assert_eq!(value.encode().as_ref(), expected, "u8::encode({value})");
         }
@@ -630,20 +626,33 @@ mod tests {
         }
 
         // u128 — big-endian (16 bytes)
-        let one_u128 = { let mut b = [0u8; 16]; b[15] = 0x01; b };
-        let cases: &[(u128, [u8; 16])] = &[
-            (0, [0x00; 16]),
-            (1, one_u128),
-            (u128::MAX, [0xff; 16]),
-        ];
+        let one_u128 = {
+            let mut b = [0u8; 16];
+            b[15] = 0x01;
+            b
+        };
+        let cases: &[(u128, [u8; 16])] = &[(0, [0x00; 16]), (1, one_u128), (u128::MAX, [0xff; 16])];
         for &(value, expected) in cases {
             assert_eq!(value.encode().as_ref(), expected, "u128::encode({value})");
         }
 
         // i128 — XOR with bit 127 to flip sign bit, then big-endian
-        let zero_i128 = { let mut b = [0u8; 16]; b[0] = 0x80; b };
-        let neg_one_i128 = { let mut b = [0xffu8; 16]; b[0] = 0x7f; b };
-        let one_i128 = { let mut b = [0u8; 16]; b[0] = 0x80; b[15] = 0x01; b };
+        let zero_i128 = {
+            let mut b = [0u8; 16];
+            b[0] = 0x80;
+            b
+        };
+        let neg_one_i128 = {
+            let mut b = [0xffu8; 16];
+            b[0] = 0x7f;
+            b
+        };
+        let one_i128 = {
+            let mut b = [0u8; 16];
+            b[0] = 0x80;
+            b[15] = 0x01;
+            b
+        };
         let cases: &[(i128, [u8; 16])] = &[
             (i128::MIN, [0x00; 16]),
             (-1, neg_one_i128),
@@ -687,7 +696,11 @@ mod tests {
         }
 
         // u128 — big-endian (16 bytes)
-        let one_bytes = { let mut b = [0u8; 16]; b[15] = 0x01; b };
+        let one_bytes = {
+            let mut b = [0u8; 16];
+            b[15] = 0x01;
+            b
+        };
         let u128_cases: &[(&[u8], u128, &[u8])] = &[
             (&[0x00u8; 16], 0, &[]),
             (&one_bytes, 1, &[]),
@@ -705,8 +718,16 @@ mod tests {
         assert_eq!(rest, &[0xca, 0xfe]);
 
         // i128 — XOR-flipped big-endian (16 bytes)
-        let zero_enc = { let mut b = [0u8; 16]; b[0] = 0x80; b };
-        let neg_one_enc = { let mut b = [0xffu8; 16]; b[0] = 0x7f; b };
+        let zero_enc = {
+            let mut b = [0u8; 16];
+            b[0] = 0x80;
+            b
+        };
+        let neg_one_enc = {
+            let mut b = [0xffu8; 16];
+            b[0] = 0x7f;
+            b
+        };
         let i128_cases: &[(&[u8], i128, &[u8])] = &[
             (&[0x00u8; 16], i128::MIN, &[]),
             (&neg_one_enc, -1, &[]),
@@ -727,10 +748,7 @@ mod tests {
 
     #[test]
     fn encode_bool() {
-        let cases: &[(bool, &[u8])] = &[
-            (false, &[0x00]),
-            (true, &[0x01]),
-        ];
+        let cases: &[(bool, &[u8])] = &[(false, &[0x00]), (true, &[0x01])];
         for &(value, expected) in cases {
             assert_eq!(value.encode().as_ref(), expected, "bool::encode({value})");
         }
@@ -751,9 +769,9 @@ mod tests {
         }
 
         let panic_cases: &[&[u8]] = &[
-            &[],        // empty input
-            &[0x02],    // invalid discriminant
-            &[0xff],    // invalid discriminant
+            &[],     // empty input
+            &[0x02], // invalid discriminant
+            &[0xff], // invalid discriminant
         ];
         for &input in panic_cases {
             assert!(
@@ -793,13 +811,16 @@ mod tests {
         for &(bytes, expected, remainder) in cases {
             let (value, rest) = String::decode_part(bytes);
             assert_eq!(value, expected, "String::decode_part({bytes:02x?}) value");
-            assert_eq!(rest, remainder, "String::decode_part({bytes:02x?}) remainder");
+            assert_eq!(
+                rest, remainder,
+                "String::decode_part({bytes:02x?}) remainder"
+            );
         }
 
         let panic_cases: &[&[u8]] = &[
-            &[],                  // empty — no terminator
-            &[0x68, 0x69],        // missing 0xff terminator
-            &[0x80, 0xff],        // invalid UTF-8 (lone continuation byte)
+            &[],           // empty — no terminator
+            &[0x68, 0x69], // missing 0xff terminator
+            &[0x80, 0xff], // invalid UTF-8 (lone continuation byte)
         ];
         for &input in panic_cases {
             assert!(
@@ -818,7 +839,11 @@ mod tests {
             ([0x00, 0xff, 0x00], &[0x00, 0xff, 0x00]),
         ];
         for &(value, expected) in cases {
-            assert_eq!(value.encode().as_ref(), expected, "[u8;3]::encode({value:02x?})");
+            assert_eq!(
+                value.encode().as_ref(),
+                expected,
+                "[u8;3]::encode({value:02x?})"
+            );
         }
     }
 
@@ -828,18 +853,25 @@ mod tests {
             (&[0x01, 0x02, 0x03], [0x01, 0x02, 0x03], &[]),
             (&[0x00, 0xff, 0x00], [0x00, 0xff, 0x00], &[]),
             // trailing bytes become the remainder
-            (&[0x01, 0x02, 0x03, 0xde, 0xad], [0x01, 0x02, 0x03], &[0xde, 0xad]),
+            (
+                &[0x01, 0x02, 0x03, 0xde, 0xad],
+                [0x01, 0x02, 0x03],
+                &[0xde, 0xad],
+            ),
         ];
         for &(bytes, expected, remainder) in cases {
             let (value, rest) = <[u8; 3]>::decode_part(bytes);
             assert_eq!(value, expected, "[u8;3]::decode_part({bytes:02x?}) value");
-            assert_eq!(rest, remainder, "[u8;3]::decode_part({bytes:02x?}) remainder");
+            assert_eq!(
+                rest, remainder,
+                "[u8;3]::decode_part({bytes:02x?}) remainder"
+            );
         }
 
         // panics when fewer bytes than S are available
         let panic_cases: &[&[u8]] = &[
-            &[],          // empty
-            &[0x01],      // 1 byte, needs 3
+            &[],           // empty
+            &[0x01],       // 1 byte, needs 3
             &[0x01, 0x02], // 2 bytes, needs 3
         ];
         for &input in panic_cases {
@@ -857,7 +889,10 @@ mod tests {
             (&[], &[0x00, 0x00]),
             (&[0x01, 0x02], &[0x01, 0x02, 0x00, 0x00]),
             (&[0x00], &[0x00, 0xff, 0x00, 0x00]),
-            (&[0x00, 0x01, 0x00], &[0x00, 0xff, 0x01, 0x00, 0xff, 0x00, 0x00]),
+            (
+                &[0x00, 0x01, 0x00],
+                &[0x00, 0xff, 0x01, 0x00, 0xff, 0x00, 0x00],
+            ),
         ];
         for &(input, expected) in cases {
             assert_eq!(
@@ -874,14 +909,21 @@ mod tests {
             (&[0x00, 0x00], &[], &[]),
             (&[0x01, 0x02, 0x00, 0x00], &[0x01, 0x02], &[]),
             (&[0x00, 0xff, 0x00, 0x00], &[0x00], &[]),
-            (&[0x00, 0xff, 0x01, 0x00, 0xff, 0x00, 0x00], &[0x00, 0x01, 0x00], &[]),
+            (
+                &[0x00, 0xff, 0x01, 0x00, 0xff, 0x00, 0x00],
+                &[0x00, 0x01, 0x00],
+                &[],
+            ),
             // bytes after the terminator become the remainder
             (&[0x01, 0x00, 0x00, 0xde, 0xad], &[0x01], &[0xde, 0xad]),
         ];
         for &(bytes, expected, remainder) in cases {
             let (value, rest) = Vec::<u8>::decode_part(bytes);
             assert_eq!(value, expected, "Vec<u8>::decode_part({bytes:02x?}) value");
-            assert_eq!(rest, remainder, "Vec<u8>::decode_part({bytes:02x?}) remainder");
+            assert_eq!(
+                rest, remainder,
+                "Vec<u8>::decode_part({bytes:02x?}) remainder"
+            );
         }
 
         let panic_cases: &[&[u8]] = &[
@@ -906,7 +948,11 @@ mod tests {
             ((u32::MAX, u8::MAX), &[0xff, 0xff, 0xff, 0xff, 0xff]),
         ];
         for (value, expected) in cases {
-            assert_eq!(value.encode().as_slice(), *expected, "(u32,u8)::encode({value:?})");
+            assert_eq!(
+                value.encode().as_slice(),
+                *expected,
+                "(u32,u8)::encode({value:?})"
+            );
         }
 
         // (A, B) variable-size: variable-field framing is preserved
@@ -925,7 +971,11 @@ mod tests {
             ((0, true, 255), &[0x00, 0x01, 0xff]),
         ];
         for (value, expected) in cases {
-            assert_eq!(value.encode().as_slice(), *expected, "(u8,bool,u8)::encode({value:?})");
+            assert_eq!(
+                value.encode().as_slice(),
+                *expected,
+                "(u8,bool,u8)::encode({value:?})"
+            );
         }
 
         // (A, B, C) variable-size: Vec<u8> in the middle, framing separates it from last field
@@ -940,7 +990,11 @@ mod tests {
             ((0, false, 0, false), &[0x00, 0x00, 0x00, 0x00]),
         ];
         for (value, expected) in cases {
-            assert_eq!(value.encode().as_slice(), *expected, "(u8,bool,u8,bool)::encode({value:?})");
+            assert_eq!(
+                value.encode().as_slice(),
+                *expected,
+                "(u8,bool,u8,bool)::encode({value:?})"
+            );
         }
 
         // (A, B, C, D) variable-size: String in second position
@@ -956,12 +1010,19 @@ mod tests {
         let cases: &[(&[u8], (u32, u8), &[u8])] = &[
             (&[0x00, 0x00, 0x00, 0x01, 0x02], (1, 2), &[]),
             (&[0xff, 0xff, 0xff, 0xff, 0xff], (u32::MAX, u8::MAX), &[]),
-            (&[0x00, 0x00, 0x00, 0x01, 0x02, 0xde, 0xad], (1, 2), &[0xde, 0xad]),
+            (
+                &[0x00, 0x00, 0x00, 0x01, 0x02, 0xde, 0xad],
+                (1, 2),
+                &[0xde, 0xad],
+            ),
         ];
         for &(bytes, expected, remainder) in cases {
             let (value, rest) = <(u32, u8)>::decode_part(bytes);
             assert_eq!(value, expected, "(u32,u8)::decode_part({bytes:02x?}) value");
-            assert_eq!(rest, remainder, "(u32,u8)::decode_part({bytes:02x?}) remainder");
+            assert_eq!(
+                rest, remainder,
+                "(u32,u8)::decode_part({bytes:02x?}) remainder"
+            );
         }
 
         // (A, B) variable-size: variable-field framing consumed, remainder is correct
@@ -972,32 +1033,54 @@ mod tests {
         // (A, B, C) fixed-size
         let cases: &[(&[u8], (u8, bool, u8), &[u8])] = &[
             (&[0x01, 0x00, 0x02], (1, false, 2), &[]),
-            (&[0x00, 0x01, 0xff, 0xca, 0xfe], (0, true, 255), &[0xca, 0xfe]),
+            (
+                &[0x00, 0x01, 0xff, 0xca, 0xfe],
+                (0, true, 255),
+                &[0xca, 0xfe],
+            ),
         ];
         for &(bytes, expected, remainder) in cases {
             let (value, rest) = <(u8, bool, u8)>::decode_part(bytes);
-            assert_eq!(value, expected, "(u8,bool,u8)::decode_part({bytes:02x?}) value");
-            assert_eq!(rest, remainder, "(u8,bool,u8)::decode_part({bytes:02x?}) remainder");
+            assert_eq!(
+                value, expected,
+                "(u8,bool,u8)::decode_part({bytes:02x?}) value"
+            );
+            assert_eq!(
+                rest, remainder,
+                "(u8,bool,u8)::decode_part({bytes:02x?}) remainder"
+            );
         }
 
         // (A, B, C) variable-size: framing of middle field cleanly separates fields
-        let (value, rest) = <(u8, Vec<u8>, u8)>::decode_part(&[0x01, 0x42, 0x00, 0x00, 0x02, 0xbe, 0xef]);
+        let (value, rest) =
+            <(u8, Vec<u8>, u8)>::decode_part(&[0x01, 0x42, 0x00, 0x00, 0x02, 0xbe, 0xef]);
         assert_eq!(value, (1u8, vec![0x42u8], 2u8));
         assert_eq!(rest, &[0xbe, 0xef]);
 
         // (A, B, C, D) fixed-size
         let cases: &[(&[u8], (u8, bool, u8, bool), &[u8])] = &[
             (&[0x01, 0x01, 0x02, 0x00], (1, true, 2, false), &[]),
-            (&[0x00, 0x00, 0x00, 0x00, 0xab], (0, false, 0, false), &[0xab]),
+            (
+                &[0x00, 0x00, 0x00, 0x00, 0xab],
+                (0, false, 0, false),
+                &[0xab],
+            ),
         ];
         for &(bytes, expected, remainder) in cases {
             let (value, rest) = <(u8, bool, u8, bool)>::decode_part(bytes);
-            assert_eq!(value, expected, "(u8,bool,u8,bool)::decode_part({bytes:02x?}) value");
-            assert_eq!(rest, remainder, "(u8,bool,u8,bool)::decode_part({bytes:02x?}) remainder");
+            assert_eq!(
+                value, expected,
+                "(u8,bool,u8,bool)::decode_part({bytes:02x?}) value"
+            );
+            assert_eq!(
+                rest, remainder,
+                "(u8,bool,u8,bool)::decode_part({bytes:02x?}) remainder"
+            );
         }
 
         // (A, B, C, D) variable-size
-        let (value, rest) = <(u8, String, u8, bool)>::decode_part(&[0x01, 0x68, 0x69, 0xff, 0x02, 0x01, 0xee]);
+        let (value, rest) =
+            <(u8, String, u8, bool)>::decode_part(&[0x01, 0x68, 0x69, 0xff, 0x02, 0x01, 0xee]);
         assert_eq!(value, (1u8, "hi".to_string(), 2u8, true));
         assert_eq!(rest, &[0xee]);
     }
@@ -1062,7 +1145,10 @@ mod tests {
         for &(bytes, expected, remainder) in cases {
             let (value, rest) = <(u32,)>::decode_part(bytes);
             assert_eq!(value, expected, "(u32,)::decode_part({bytes:02x?}) value");
-            assert_eq!(rest, remainder, "(u32,)::decode_part({bytes:02x?}) remainder");
+            assert_eq!(
+                rest, remainder,
+                "(u32,)::decode_part({bytes:02x?}) remainder"
+            );
         }
 
         // variable-size type: framing consumed, result wrapped in 1-tuple
@@ -1129,9 +1215,11 @@ mod tests {
 
         // (A, B, C) with variable-size PK: String as primary key
         assert_eq!(
-            (1u8, true, 2u8).append(&"pk".to_string()).encode().as_slice(),
+            (1u8, true, 2u8)
+                .append(&"pk".to_string())
+                .encode()
+                .as_slice(),
             &[0x01, 0x01, 0x02, 0x70, 0x6b, 0xff]
         );
     }
 }
-
