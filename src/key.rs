@@ -226,7 +226,7 @@ impl Key for String {
     type OwnedKey = Self;
 
     type EncodedBytes<'a>
-        = Vec<u8>
+        = IVec
     where
         Self: 'a;
 
@@ -247,12 +247,12 @@ impl Key for &str {
     type OwnedKey = String;
 
     type EncodedBytes<'a>
-        = Vec<u8>
+        = IVec
     where
         Self: 'a;
 
     fn encode(&self) -> Self::EncodedBytes<'_> {
-        let mut out = Vec::with_capacity(self.len() + 1);
+        let mut out = IVec::with_capacity(self.len() + 1);
         out.extend_from_slice(self.as_bytes());
         out.push(0xff);
         out
