@@ -76,7 +76,10 @@ where
         }
     }
 
-    pub fn range(mut self, range: Range<Bound<StoreKey<'a, Idx, Record::Key<'a>, Record>>>) -> Self {
+    pub fn range(
+        mut self,
+        range: Range<Bound<StoreKey<'a, Idx, Record::Key<'a>, Record>>>,
+    ) -> Self {
         self.range = ScanRange::Range {
             left: range.start.map(|p| p.encode().as_ref().to_vec()),
             right: range.end.map(|p| p.encode().as_ref().to_vec()),

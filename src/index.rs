@@ -42,7 +42,7 @@ where
             Err(Error::AlreadyExists(Self::NAME.to_string()))?
         }
 
-        store.set(skey, &new.0.encode())?;
+        store.set(skey, new.0.encode())?;
 
         Ok(())
     }
@@ -89,7 +89,8 @@ where
     IndexKey: Key,
     PrimaryKey: Key,
 {
-    type StoreKey<'a> = IndexKey
+    type StoreKey<'a>
+        = IndexKey
     where
         IndexKey: 'a,
         PrimaryKey: 'a;
@@ -109,7 +110,8 @@ where
     IndexKey: Key + AppendKey<PrimaryKey>,
     PrimaryKey: Key,
 {
-    type StoreKey<'a> = <IndexKey as AppendKey<PrimaryKey>>::Key<'a>
+    type StoreKey<'a>
+        = <IndexKey as AppendKey<PrimaryKey>>::Key<'a>
     where
         IndexKey: 'a,
         PrimaryKey: 'a;

@@ -116,9 +116,7 @@ pub fn decode_unsized_key_bytes(bytes: &[u8]) -> (Vec<u8>, &[u8]) {
     while i < bytes.len() {
         match bytes[i] {
             0x00 => {
-                let next = bytes
-                    .get(i + 1)
-                    .unwrap();
+                let next = bytes.get(i + 1).unwrap();
                 match next {
                     0x00 => {
                         // terminator
@@ -143,13 +141,13 @@ pub fn decode_unsized_key_bytes(bytes: &[u8]) -> (Vec<u8>, &[u8]) {
     panic!("unterminated encoded key bytes: expected terminator 0x00 0x00 not found");
 }
 
-impl<K: Key> Key for &K
-{
+impl<K: Key> Key for &K {
     const SIZE: KeySize = K::SIZE;
 
     type OwnedKey = K::OwnedKey;
 
-    type EncodedBytes<'a> = K::EncodedBytes<'a>
+    type EncodedBytes<'a>
+        = K::EncodedBytes<'a>
     where
         Self: 'a;
 
@@ -167,7 +165,8 @@ impl<K: Key> Key for (K,) {
 
     type OwnedKey = (K::OwnedKey,);
 
-    type EncodedBytes<'a> = K::EncodedBytes<'a>
+    type EncodedBytes<'a>
+        = K::EncodedBytes<'a>
     where
         Self: 'a;
 
@@ -197,7 +196,8 @@ impl Key for bool {
 
     type OwnedKey = Self;
 
-    type EncodedBytes<'a> = [u8; 1]
+    type EncodedBytes<'a>
+        = [u8; 1]
     where
         Self: 'a;
 
@@ -224,12 +224,13 @@ impl Key for String {
 
     type OwnedKey = Self;
 
-    type EncodedBytes<'a> = Vec<u8>
+    type EncodedBytes<'a>
+        = Vec<u8>
     where
         Self: 'a;
 
     fn encode(&self) -> Self::EncodedBytes<'_> {
-        let mut out = Vec::with_capacity(self.len()+1);
+        let mut out = Vec::with_capacity(self.len() + 1);
         out.extend_from_slice(self.as_bytes());
         out.push(0xff);
         out
@@ -254,7 +255,8 @@ impl<const S: usize> Key for [u8; S] {
 
     type OwnedKey = Self;
 
-    type EncodedBytes<'a> = &'a Self
+    type EncodedBytes<'a>
+        = &'a Self
     where
         Self: 'a;
 
@@ -273,12 +275,13 @@ impl Key for Vec<u8> {
 
     type OwnedKey = Self;
 
-    type EncodedBytes<'a> = Vec<u8>
+    type EncodedBytes<'a>
+        = Vec<u8>
     where
         Self: 'a;
 
     fn encode(&self) -> Self::EncodedBytes<'_> {
-        let mut out = Vec::with_capacity(self.len()+2);
+        let mut out = Vec::with_capacity(self.len() + 2);
         encode_unsized_key_bytes(self, &mut out);
         out
     }
@@ -300,7 +303,8 @@ where
 
     type OwnedKey = (A::OwnedKey, B::OwnedKey);
 
-    type EncodedBytes<'a> = Vec<u8>
+    type EncodedBytes<'a>
+        = Vec<u8>
     where
         Self: 'a;
 
@@ -311,12 +315,12 @@ where
                 out.extend_from_slice(self.0.encode().as_ref());
                 out.extend_from_slice(self.1.encode().as_ref());
                 out
-            },
+            }
             KeySize::Variable => {
                 let mut out = self.0.encode().as_ref().to_vec();
                 out.extend_from_slice(self.1.encode().as_ref());
                 out
-            },
+            }
         }
     }
 
@@ -342,7 +346,8 @@ where
 
     type OwnedKey = (A::OwnedKey, B::OwnedKey, C::OwnedKey);
 
-    type EncodedBytes<'a> = Vec<u8>
+    type EncodedBytes<'a>
+        = Vec<u8>
     where
         Self: 'a;
 
@@ -354,13 +359,13 @@ where
                 out.extend_from_slice(self.1.encode().as_ref());
                 out.extend_from_slice(self.2.encode().as_ref());
                 out
-            },
+            }
             KeySize::Variable => {
                 let mut out = self.0.encode().as_ref().to_vec();
                 out.extend_from_slice(self.1.encode().as_ref());
                 out.extend_from_slice(self.2.encode().as_ref());
                 out
-            },
+            }
         }
     }
 
@@ -388,7 +393,8 @@ where
 
     type OwnedKey = (A::OwnedKey, B::OwnedKey, C::OwnedKey, D::OwnedKey);
 
-    type EncodedBytes<'a> = Vec<u8>
+    type EncodedBytes<'a>
+        = Vec<u8>
     where
         Self: 'a;
 
@@ -401,14 +407,14 @@ where
                 out.extend_from_slice(self.2.encode().as_ref());
                 out.extend_from_slice(self.3.encode().as_ref());
                 out
-            },
+            }
             KeySize::Variable => {
                 let mut out = self.0.encode().as_ref().to_vec();
                 out.extend_from_slice(self.1.encode().as_ref());
                 out.extend_from_slice(self.2.encode().as_ref());
                 out.extend_from_slice(self.3.encode().as_ref());
                 out
-            },
+            }
         }
     }
 
@@ -430,7 +436,8 @@ pub trait AppendKey<PK: Key> {
 }
 
 impl<K: Key, PK: Key> AppendKey<PK> for (K,) {
-    type Key<'a> = (K, &'a PK)
+    type Key<'a>
+        = (K, &'a PK)
     where
         PK: 'a;
 
@@ -440,7 +447,8 @@ impl<K: Key, PK: Key> AppendKey<PK> for (K,) {
 }
 
 impl<A: Key, B: Key, PK: Key> AppendKey<PK> for (A, B) {
-    type Key<'a> = (A, B, &'a PK)
+    type Key<'a>
+        = (A, B, &'a PK)
     where
         PK: 'a;
 
@@ -450,7 +458,8 @@ impl<A: Key, B: Key, PK: Key> AppendKey<PK> for (A, B) {
 }
 
 impl<A: Key, B: Key, C: Key, PK: Key> AppendKey<PK> for (A, B, C) {
-    type Key<'a> = (A, B, C, &'a PK)
+    type Key<'a>
+        = (A, B, C, &'a PK)
     where
         PK: 'a;
 
@@ -482,14 +491,24 @@ mod tests {
             (&[0x00, 0xff, 0x00, 0x00], &[0x00]),
         ];
         for &(bytes, expected) in cases {
-            assert_eq!(Vec::<u8>::decode(bytes), expected, "Vec<u8>::decode({bytes:02x?})");
+            assert_eq!(
+                Vec::<u8>::decode(bytes),
+                expected,
+                "Vec<u8>::decode({bytes:02x?})"
+            );
         }
 
         // panics when extra bytes remain after a fully decoded key
         let panic_cases: &[&dyn Fn()] = &[
-            &|| { u32::decode(&[0x00, 0x00, 0x00, 0x01, 0xff]); },
-            &|| { bool::decode(&[0x00, 0x01]); },
-            &|| { String::decode(&[b'a', 0xff, b'b']); },
+            &|| {
+                u32::decode(&[0x00, 0x00, 0x00, 0x01, 0xff]);
+            },
+            &|| {
+                bool::decode(&[0x00, 0x01]);
+            },
+            &|| {
+                String::decode(&[b'a', 0xff, b'b']);
+            },
         ];
         for &case in panic_cases {
             assert!(
@@ -529,7 +548,11 @@ mod tests {
             // escaped null bytes are decoded back to 0x00
             (&[0x00, 0xff, 0x00, 0x00], &[0x00], &[]),
             (&[0x00, 0xff, 0x00, 0xff, 0x00, 0x00], &[0x00, 0x00], &[]),
-            (&[0x01, 0x00, 0xff, 0x02, 0x00, 0x00], &[0x01, 0x00, 0x02], &[]),
+            (
+                &[0x01, 0x00, 0xff, 0x02, 0x00, 0x00],
+                &[0x01, 0x00, 0x02],
+                &[],
+            ),
             // bytes after the terminator are returned as remainder
             (&[0x00, 0x00, 0x42], &[], &[0x42]),
             (&[0x01, 0x00, 0x00, 0x02, 0x03], &[0x01], &[0x02, 0x03]),
@@ -538,13 +561,16 @@ mod tests {
         for (encoded, expected_value, expected_remainder) in cases {
             let (value, remainder) = super::decode_unsized_key_bytes(encoded);
             assert_eq!(value, *expected_value, "decode({encoded:02x?}) value");
-            assert_eq!(remainder, *expected_remainder, "decode({encoded:02x?}) remainder");
+            assert_eq!(
+                remainder, *expected_remainder,
+                "decode({encoded:02x?}) remainder"
+            );
         }
 
         let panic_cases: &[&[u8]] = &[
-            &[],              // empty — no terminator
-            &[0x01, 0x02],    // missing terminator
-            &[0x00, 0x01],    // invalid escape sequence
+            &[],           // empty — no terminator
+            &[0x01, 0x02], // missing terminator
+            &[0x00, 0x01], // invalid escape sequence
         ];
 
         for &input in panic_cases {
@@ -572,7 +598,10 @@ mod tests {
             super::encode_unsized_key_bytes(input, &mut encoded);
             let (decoded, remainder) = super::decode_unsized_key_bytes(&encoded);
             assert_eq!(decoded, input, "round-trip({input:02x?})");
-            assert!(remainder.is_empty(), "unexpected remainder after round-trip");
+            assert!(
+                remainder.is_empty(),
+                "unexpected remainder after round-trip"
+            );
         }
     }
 }

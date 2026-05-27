@@ -5,7 +5,7 @@ pub mod index;
 pub mod index_registry;
 pub mod iter;
 pub mod key;
+pub mod macros;
 pub mod prefix;
 pub mod scan;
 pub mod store;
-pub mod macros;

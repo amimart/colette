@@ -36,7 +36,7 @@ where
         }
     }
 
-    pub fn builder<K, T>(name: &'static str, db: DB) -> CollectionBuilder<DB, T, Nil>
+    pub fn builder<K, T>(name: &'static str, db: DB) -> CollectionBuilder<'static, DB, T, Nil>
     where
         K: Key,
         T: Entity,

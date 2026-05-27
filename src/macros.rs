@@ -6,7 +6,8 @@ macro_rules! impl_unsigned_integer_key {
 
             type OwnedKey = $ty;
 
-            type EncodedBytes<'a> = [u8; std::mem::size_of::<$ty>()]
+            type EncodedBytes<'a>
+                = [u8; std::mem::size_of::<$ty>()]
             where
                 Self: 'a;
 
@@ -30,7 +31,8 @@ macro_rules! impl_signed_integer_key {
 
             type OwnedKey = $signed;
 
-            type EncodedBytes<'a> = [u8; std::mem::size_of::<$unsigned>()]
+            type EncodedBytes<'a>
+                = [u8; std::mem::size_of::<$unsigned>()]
             where
                 Self: 'a;
 

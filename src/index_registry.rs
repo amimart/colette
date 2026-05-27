@@ -1,8 +1,8 @@
+use crate::entity::Entity;
 use crate::error::Error;
 use crate::index::{Index, IndexKind};
 use crate::store::MultiStoreWriteHandle;
 use std::marker::PhantomData;
-use crate::entity::Entity;
 
 // HList helper types:
 pub struct Nil;
@@ -21,7 +21,10 @@ where
         new: (&T::Key<'a>, &T),
     ) -> Result<(), Error>;
 
-    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&T::Key<'a>, &T)) -> Result<(), Error>;
+    fn remove<DB: MultiStoreWriteHandle>(
+        db: &mut DB,
+        target: (&T::Key<'a>, &T),
+    ) -> Result<(), Error>;
 
     fn has_index(name: &str) -> bool;
 }
@@ -38,7 +41,10 @@ where
         Ok(())
     }
 
-    fn remove<DB: MultiStoreWriteHandle>(_db: &mut DB, _target: (&T::Key<'a>, &T)) -> Result<(), Error> {
+    fn remove<DB: MultiStoreWriteHandle>(
+        _db: &mut DB,
+        _target: (&T::Key<'a>, &T),
+    ) -> Result<(), Error> {
         Ok(())
     }
 
@@ -63,7 +69,10 @@ where
         Tail::set(db, old, new)
     }
 
-    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&T::Key<'a>, &T)) -> Result<(), Error> {
+    fn remove<DB: MultiStoreWriteHandle>(
+        db: &mut DB,
+        target: (&T::Key<'a>, &T),
+    ) -> Result<(), Error> {
         Head::remove(db, target)?;
         Tail::remove(db, target)
     }
@@ -224,11 +233,7 @@ mod tests {
     #[test]
     fn has_index() {
         let cases: &[(fn(&str) -> bool, &str, bool)] = &[
-            (
-                <Nil as IndexRegistry<Record>>::has_index,
-                "index_a",
-                false,
-            ),
+            (<Nil as IndexRegistry<Record>>::has_index, "index_a", false),
             (<Nil as IndexRegistry<Record>>::has_index, "", false),
             (
                 <Cons<IndexA, Nil> as IndexRegistry<Record>>::has_index,

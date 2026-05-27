@@ -1,6 +1,5 @@
 use crate::entity::Entity;
 use crate::error::Error;
-use crate::key::Key;
 use crate::store::ReadKVStore;
 use std::marker::PhantomData;
 
@@ -20,7 +19,7 @@ where
     inner: Store::Iter,
     primary_store: Store,
 
-    _marker: PhantomData<(Record)>,
+    _marker: PhantomData<Record>,
 }
 
 impl<Store, Record> IndexIterator<Store, Record>
