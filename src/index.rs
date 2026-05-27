@@ -6,24 +6,27 @@ use crate::store::{MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
 /// Index allows to maintain a separate query efficient stores on non primary-key, it is made for
 /// a specific Entity and specified by a Key to index extracted from an Entity, and an IndexKind
 /// (i.e. Unique or Multi).
-pub trait Index<'a, Record: Entity>
-where
-    Record: 'a,
-{
-    type Key: Key;
-    type Kind: IndexKind<Self::Key, Record::Key<'a>>;
+pub trait Index<Record: Entity> {
+    type Key<'a>: Key
+    where
+        Record: 'a;
+
+    type Kind<'a>: IndexKind<Self::Key<'a>, Record::Key<'a>>
+    where
+        Record: 'a;
 
     const NAME: &'static str;
 
-    fn key(entity: &Record) -> Self::Key;
+    fn key(entity: &Record) -> Self::Key<'_>;
 
-    fn set<DB: MultiStoreWriteHandle>(
+    fn set<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        old: Option<(&Record::Key<'a>, &Record)>,
-        new: (&Record::Key<'a>, &Record),
+        old: Option<(&Record::Key<'a>, &'a Record)>,
+        new: (&Record::Key<'a>, &'a Record),
     ) -> Result<(), Error> {
         let new_skey = Self::Kind::store_key(Self::key(new.1), new.0);
 
+        let mut store = None;
         if let Some((pk, entity)) = old {
             let old_skey = Self::Kind::store_key(Self::key(entity), pk);
 
@@ -31,11 +34,12 @@ where
                 return Ok(());
             }
 
-            let mut store = db.open_store(Self::NAME)?;
-            store.remove(old_skey.encode())?;
+            store
+                .get_or_insert(db.open_store(Self::NAME)?)
+                .remove(old_skey.encode())?;
         }
 
-        let mut store = db.open_store(Self::NAME)?;
+        let mut store = store.unwrap_or(db.open_store(Self::NAME)?);
 
         let skey = new_skey.encode();
         if store.get(&skey)?.is_some() {
@@ -47,9 +51,9 @@ where
         Ok(())
     }
 
-    fn remove<DB: MultiStoreWriteHandle>(
+    fn remove<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        target: (&Record::Key<'a>, &Record),
+        target: (&Record::Key<'a>, &'a Record),
     ) -> Result<(), Error> {
         let mut store = db.open_store(Self::NAME)?;
         let ikey = Self::key(target.1);
@@ -60,7 +64,7 @@ where
 }
 
 pub type StoreKey<'a, I, PK, T> =
-    <<I as Index<'a, T>>::Kind as IndexKind<<I as Index<'a, T>>::Key, PK>>::StoreKey<'a>;
+    <<I as Index<T>>::Kind<'a> as IndexKind<<I as Index<T>>::Key<'a>, PK>>::StoreKey<'a>;
 
 /// IndexKind helps to specify an index behavior by expressing the actual stored key in the index
 /// based on the index key and the underlying entity primary key.

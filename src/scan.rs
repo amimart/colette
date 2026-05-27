@@ -44,8 +44,8 @@ pub struct IndexScan<'a, ReadHandle, Record, Idx>
 where
     ReadHandle: MultiStoreReadHandle,
     Record: Entity,
-    Idx: Index<'a, Record>,
-    Idx::Kind: IndexKind<Idx::Key, Record::Key<'a>>,
+    Idx: Index<Record>,
+    Idx::Kind<'a>: IndexKind<Idx::Key<'a>, Record::Key<'a>>,
     Self: 'a,
 {
     collection_name: &'static str,
@@ -61,8 +61,8 @@ impl<'a, ReadHandle, Record, Idx> IndexScan<'a, ReadHandle, Record, Idx>
 where
     ReadHandle: MultiStoreReadHandle,
     Record: Entity,
-    Idx: Index<'a, Record>,
-    Idx::Kind: IndexKind<Idx::Key, Record::Key<'a>>,
+    Idx: Index<Record>,
+    Idx::Kind<'a>: IndexKind<Idx::Key<'a>, Record::Key<'a>>,
 {
     pub fn new(collection_name: &'static str, read_handle: ReadHandle) -> Self {
         Self {
@@ -121,8 +121,8 @@ impl<'a, ReadHandle, Record, Idx, KeyPrefix>
 where
     ReadHandle: MultiStoreReadHandle,
     Record: Entity,
-    Idx: Index<'a, Record>,
-    Idx::Kind: IndexKind<Idx::Key, Record::Key<'a>>,
+    Idx: Index<Record>,
+    Idx::Kind<'a>: IndexKind<Idx::Key<'a>, Record::Key<'a>>,
     KeyPrefix: Prefix,
     StoreKey<'a, Idx, Record::Key<'a>, Record>: Key + Prefixable<KeyPrefix>,
 {
