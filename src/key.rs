@@ -1,4 +1,5 @@
 use crate::{impl_signed_integer_key, impl_unsigned_integer_key};
+use crate::inline_vec::IVec;
 
 /// A value that can be encoded as an ordered key for Colette stores and indexes.
 ///
@@ -95,7 +96,7 @@ pub enum KeySize {
 ///
 /// This encoding ensures that variable-size keys remain safe to concatenate
 /// inside composite keys while preserving lexicographic ordering.
-pub fn encode_unsized_key_bytes(bytes: &[u8], out: &mut Vec<u8>) {
+pub fn encode_unsized_key_bytes(bytes: &[u8], out: &mut IVec) {
     for &b in bytes {
         match b {
             0x00 => out.extend_from_slice(&[0x00, 0xff]),
@@ -297,12 +298,12 @@ impl Key for Vec<u8> {
     type OwnedKey = Self;
 
     type EncodedBytes<'a>
-        = Vec<u8>
+        = IVec
     where
         Self: 'a;
 
     fn encode(&self) -> Self::EncodedBytes<'_> {
-        let mut out = Vec::with_capacity(self.len() + 2);
+        let mut out = IVec::with_capacity(self.len() + 2);
         encode_unsized_key_bytes(self, &mut out);
         out
     }
@@ -491,6 +492,7 @@ impl<A: Key, B: Key, C: Key, PK: Key> AppendKey<PK> for (A, B, C) {
 
 #[cfg(test)]
 mod tests {
+    use crate::inline_vec::IVec;
     use super::Key;
 
     #[test]
@@ -553,9 +555,9 @@ mod tests {
         ];
 
         for (input, expected) in cases {
-            let mut out = Vec::new();
+            let mut out = IVec::new();
             super::encode_unsized_key_bytes(input, &mut out);
-            assert_eq!(out, *expected, "encode({input:02x?})");
+            assert_eq!(out.as_ref(), *expected, "encode({input:02x?})");
         }
     }
 
@@ -615,7 +617,7 @@ mod tests {
         ];
 
         for &input in cases {
-            let mut encoded = Vec::new();
+            let mut encoded = IVec::new();
             super::encode_unsized_key_bytes(input, &mut encoded);
             let (decoded, remainder) = super::decode_unsized_key_bytes(&encoded);
             assert_eq!(decoded, input, "round-trip({input:02x?})");
