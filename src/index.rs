@@ -13,7 +13,7 @@ pub trait Index<Record: Entity> {
 
     type Kind<'a>: IndexKind<Self::Key<'a>, Record::Key<'a>>
     where
-        Record: 'a,;
+        Record: 'a;
 
     const NAME: &'static str;
 
@@ -34,7 +34,8 @@ pub trait Index<Record: Entity> {
                 return Ok(());
             }
 
-            store.get_or_insert(db.open_store(Self::NAME)?)
+            store
+                .get_or_insert(db.open_store(Self::NAME)?)
                 .remove(old_skey.encode())?;
         }
 

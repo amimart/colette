@@ -11,8 +11,7 @@ pub struct There<Tail>(PhantomData<Tail>);
 pub struct Cons<Head, Tail>(PhantomData<(Head, Tail)>);
 
 /// IndexRegistry is a recursive HList trait to allow defining multiple indexes as generic types.
-pub trait IndexRegistry<T: Entity>
-{
+pub trait IndexRegistry<T: Entity> {
     fn set<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
         old: Option<(&T::Key<'a>, &'a T)>,

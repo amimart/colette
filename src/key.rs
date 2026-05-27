@@ -246,7 +246,7 @@ impl Key for &str {
     type OwnedKey = String;
 
     type EncodedBytes<'a>
-    = Vec<u8>
+        = Vec<u8>
     where
         Self: 'a;
 
