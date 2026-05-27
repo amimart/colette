@@ -195,25 +195,24 @@ impl_signed_integer_key!(i128 => u128);
 impl Key for bool {
     const SIZE: KeySize = KeySize::Fixed(1);
 
-    fn encode_into(&self, out: &mut Vec<u8>) {
-        out.push(match self {
-            true => 1,
-            false => 0,
-        });
+    type OwnedKey = Self;
+
+    type EncodedBytes<'a> = [u8; 1]
+    where
+        Self: 'a;
+
+    fn encode(&self) -> Self::EncodedBytes<'_> {
+        match self {
+            true => [1],
+            false => [0],
+        }
     }
 
-    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError> {
-        let byte = *bytes.first().ok_or(DecodeKeyError::InvalidSize {
-            expected: 1,
-            actual: 0,
-        })?;
-
-        match byte {
-            0 => Ok(false),
-            1 => Ok(true),
-            value => Err(DecodeKeyError::InvalidBytes(format!(
-                "invalid boolean byte: expected 0 or 1, got {value}"
-            ))),
+    fn decode_part(bytes: &[u8]) -> (Self::OwnedKey, &[u8]) {
+        match bytes {
+            [0, r @ ..] => (false, r),
+            [1, r @ ..] => (true, r),
+            _ => panic!("invalid boolean bytes"),
         }
     }
 }
