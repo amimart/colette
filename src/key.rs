@@ -604,4 +604,124 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn encode_integers() {
+        // u8 — big-endian (1 byte)
+        let cases: &[(u8, &[u8])] = &[
+            (0, &[0x00]),
+            (1, &[0x01]),
+            (u8::MAX, &[0xff]),
+        ];
+        for &(value, expected) in cases {
+            assert_eq!(value.encode().as_ref(), expected, "u8::encode({value})");
+        }
+
+        // i8 — XOR with 0x80 to flip sign bit, then big-endian
+        let cases: &[(i8, &[u8])] = &[
+            (i8::MIN, &[0x00]),
+            (-1, &[0x7f]),
+            (0, &[0x80]),
+            (1, &[0x81]),
+            (i8::MAX, &[0xff]),
+        ];
+        for &(value, expected) in cases {
+            assert_eq!(value.encode().as_ref(), expected, "i8::encode({value})");
+        }
+
+        // u128 — big-endian (16 bytes)
+        let one_u128 = { let mut b = [0u8; 16]; b[15] = 0x01; b };
+        let cases: &[(u128, [u8; 16])] = &[
+            (0, [0x00; 16]),
+            (1, one_u128),
+            (u128::MAX, [0xff; 16]),
+        ];
+        for &(value, expected) in cases {
+            assert_eq!(value.encode().as_ref(), expected, "u128::encode({value})");
+        }
+
+        // i128 — XOR with bit 127 to flip sign bit, then big-endian
+        let zero_i128 = { let mut b = [0u8; 16]; b[0] = 0x80; b };
+        let neg_one_i128 = { let mut b = [0xffu8; 16]; b[0] = 0x7f; b };
+        let one_i128 = { let mut b = [0u8; 16]; b[0] = 0x80; b[15] = 0x01; b };
+        let cases: &[(i128, [u8; 16])] = &[
+            (i128::MIN, [0x00; 16]),
+            (-1, neg_one_i128),
+            (0, zero_i128),
+            (1, one_i128),
+            (i128::MAX, [0xff; 16]),
+        ];
+        for &(value, expected) in cases {
+            assert_eq!(value.encode().as_ref(), expected, "i128::encode({value})");
+        }
+    }
+
+    #[test]
+    fn decode_part_integers() {
+        // u8 — exact bytes and trailing remainder
+        let cases: &[(&[u8], u8, &[u8])] = &[
+            (&[0x00], 0, &[]),
+            (&[0x01], 1, &[]),
+            (&[0xff], u8::MAX, &[]),
+            (&[0x42, 0xde, 0xad], 0x42, &[0xde, 0xad]),
+        ];
+        for &(bytes, expected, remainder) in cases {
+            let (value, rest) = u8::decode_part(bytes);
+            assert_eq!(value, expected, "u8::decode_part({bytes:02x?}) value");
+            assert_eq!(rest, remainder, "u8::decode_part({bytes:02x?}) remainder");
+        }
+
+        // i8 — XOR-flipped encoding
+        let cases: &[(&[u8], i8, &[u8])] = &[
+            (&[0x00], i8::MIN, &[]),
+            (&[0x7f], -1, &[]),
+            (&[0x80], 0, &[]),
+            (&[0x81], 1, &[]),
+            (&[0xff], i8::MAX, &[]),
+            (&[0x80, 0xde, 0xad], 0, &[0xde, 0xad]),
+        ];
+        for &(bytes, expected, remainder) in cases {
+            let (value, rest) = i8::decode_part(bytes);
+            assert_eq!(value, expected, "i8::decode_part({bytes:02x?}) value");
+            assert_eq!(rest, remainder, "i8::decode_part({bytes:02x?}) remainder");
+        }
+
+        // u128 — big-endian (16 bytes)
+        let one_bytes = { let mut b = [0u8; 16]; b[15] = 0x01; b };
+        let u128_cases: &[(&[u8], u128, &[u8])] = &[
+            (&[0x00u8; 16], 0, &[]),
+            (&one_bytes, 1, &[]),
+            (&[0xffu8; 16], u128::MAX, &[]),
+        ];
+        for &(bytes, expected, remainder) in u128_cases {
+            let (value, rest) = u128::decode_part(bytes);
+            assert_eq!(value, expected, "u128::decode_part value");
+            assert_eq!(rest, remainder, "u128::decode_part remainder");
+        }
+        // with trailing bytes
+        let bytes_with_tail: Vec<u8> = [0u8; 16].iter().chain(&[0xca, 0xfe]).copied().collect();
+        let (value, rest) = u128::decode_part(&bytes_with_tail);
+        assert_eq!(value, 0u128);
+        assert_eq!(rest, &[0xca, 0xfe]);
+
+        // i128 — XOR-flipped big-endian (16 bytes)
+        let zero_enc = { let mut b = [0u8; 16]; b[0] = 0x80; b };
+        let neg_one_enc = { let mut b = [0xffu8; 16]; b[0] = 0x7f; b };
+        let i128_cases: &[(&[u8], i128, &[u8])] = &[
+            (&[0x00u8; 16], i128::MIN, &[]),
+            (&neg_one_enc, -1, &[]),
+            (&zero_enc, 0, &[]),
+            (&[0xffu8; 16], i128::MAX, &[]),
+        ];
+        for &(bytes, expected, remainder) in i128_cases {
+            let (value, rest) = i128::decode_part(bytes);
+            assert_eq!(value, expected, "i128::decode_part value");
+            assert_eq!(rest, remainder, "i128::decode_part remainder");
+        }
+        // with trailing bytes
+        let bytes_with_tail: Vec<u8> = [0x00u8; 16].iter().chain(&[0xbe, 0xef]).copied().collect();
+        let (value, rest) = i128::decode_part(&bytes_with_tail);
+        assert_eq!(value, i128::MIN);
+        assert_eq!(rest, &[0xbe, 0xef]);
+    }
 }
