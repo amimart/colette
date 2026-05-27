@@ -22,26 +22,20 @@ where
         old: Option<(&Record::Key<'a>, &Record)>,
         new: (&Record::Key<'a>, &Record),
     ) -> Result<(), Error> {
-        let new_ikey = Self::key(new.1);
-        let new_skey = Self::Kind::store_key(&new_ikey, new.0);
+        let new_skey = Self::Kind::store_key(Self::key(new.1), new.0);
 
-        let mut store: Option<DB::Store> = None;
-        match old {
-            Some((pk, entity)) => {
-                let old_ikey = Self::key(entity);
-                let old_skey = Self::Kind::store_key(&old_ikey, pk);
+        if let Some((pk, entity)) = old {
+            let old_skey = Self::Kind::store_key(Self::key(entity), pk);
 
-                if old_skey == new_skey {
-                    return Ok(());
-                }
+            if old_skey == new_skey {
+                return Ok(());
+            }
 
-                store.get_or_insert(db.open_store(Self::NAME)?)
-                    .remove(old_skey.encode())?;
-            },
-            None => {}
-        };
+            let mut store = db.open_store(Self::NAME)?;
+            store.remove(old_skey.encode())?;
+        }
 
-        let mut store = store.unwrap_or(db.open_store(Self::NAME)?);
+        let mut store = db.open_store(Self::NAME)?;
 
         let skey = new_skey.encode();
         if store.get(&skey)?.is_some() {
@@ -59,7 +53,7 @@ where
     ) -> Result<(), Error> {
         let mut store = db.open_store(Self::NAME)?;
         let ikey = Self::key(target.1);
-        let skey = Self::Kind::store_key(&ikey, target.0);
+        let skey = Self::Kind::store_key(ikey, target.0);
 
         store.remove(skey.encode()).map_err(Error::Backend)
     }
@@ -83,7 +77,9 @@ where
         IndexKey: 'a,
         PrimaryKey: 'a;
 
-    fn store_key<'a>(k: &'a IndexKey, pk: &'a PrimaryKey) -> Self::StoreKey<'a>;
+    fn store_key<'a>(k: IndexKey, pk: &'a PrimaryKey) -> Self::StoreKey<'a>
+    where
+        IndexKey: 'a;
 }
 
 pub struct Unique;
@@ -93,13 +89,15 @@ where
     IndexKey: Key,
     PrimaryKey: Key,
 {
-    type StoreKey<'a>
-        = &'a IndexKey
+    type StoreKey<'a> = IndexKey
     where
         IndexKey: 'a,
         PrimaryKey: 'a;
 
-    fn store_key<'a>(k: &'a IndexKey, _pk: &'a PrimaryKey) -> Self::StoreKey<'a> {
+    fn store_key<'a>(k: IndexKey, _pk: &'a PrimaryKey) -> Self::StoreKey<'a>
+    where
+        IndexKey: 'a,
+    {
         k
     }
 }
@@ -111,13 +109,15 @@ where
     IndexKey: Key + AppendKey<PrimaryKey>,
     PrimaryKey: Key,
 {
-    type StoreKey<'a>
-        = <IndexKey as AppendKey<PrimaryKey>>::Key<'a>
+    type StoreKey<'a> = <IndexKey as AppendKey<PrimaryKey>>::Key<'a>
     where
         IndexKey: 'a,
         PrimaryKey: 'a;
 
-    fn store_key<'a>(k: &'a IndexKey, pk: &'a PrimaryKey) -> Self::StoreKey<'a> {
+    fn store_key<'a>(k: IndexKey, pk: &'a PrimaryKey) -> Self::StoreKey<'a>
+    where
+        IndexKey: 'a,
+    {
         k.append(pk)
     }
 }
