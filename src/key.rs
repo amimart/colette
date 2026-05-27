@@ -230,6 +230,27 @@ impl Key for String {
         Self: 'a;
 
     fn encode(&self) -> Self::EncodedBytes<'_> {
+        self.as_str().encode()
+    }
+
+    fn decode_part(bytes: &[u8]) -> (Self::OwnedKey, &[u8]) {
+        <&str as Key>::decode_part(bytes)
+    }
+}
+
+/// As Rust Strings are guaranteed UTF-8 we don't need escaping, so we just use `0xff` (i.e.
+/// forbidden in utf-8) as end byte.
+impl Key for &str {
+    const SIZE: KeySize = KeySize::Variable;
+
+    type OwnedKey = String;
+
+    type EncodedBytes<'a>
+    = Vec<u8>
+    where
+        Self: 'a;
+
+    fn encode(&self) -> Self::EncodedBytes<'_> {
         let mut out = Vec::with_capacity(self.len() + 1);
         out.extend_from_slice(self.as_bytes());
         out.push(0xff);
