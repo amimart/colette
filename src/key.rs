@@ -326,20 +326,20 @@ where
     type OwnedKey = (A::OwnedKey, B::OwnedKey);
 
     type EncodedBytes<'a>
-        = Vec<u8>
+        = IVec
     where
         Self: 'a;
 
     fn encode(&self) -> Self::EncodedBytes<'_> {
         match Self::SIZE {
             KeySize::Fixed(s) => {
-                let mut out = Vec::with_capacity(s);
+                let mut out = IVec::with_capacity(s);
                 out.extend_from_slice(self.0.encode().as_ref());
                 out.extend_from_slice(self.1.encode().as_ref());
                 out
             }
             KeySize::Variable => {
-                let mut out = self.0.encode().as_ref().to_vec();
+                let mut out = IVec::from(self.0.encode().as_ref());
                 out.extend_from_slice(self.1.encode().as_ref());
                 out
             }
@@ -369,21 +369,21 @@ where
     type OwnedKey = (A::OwnedKey, B::OwnedKey, C::OwnedKey);
 
     type EncodedBytes<'a>
-        = Vec<u8>
+        = IVec
     where
         Self: 'a;
 
     fn encode(&self) -> Self::EncodedBytes<'_> {
         match Self::SIZE {
             KeySize::Fixed(s) => {
-                let mut out = Vec::with_capacity(s);
+                let mut out = IVec::with_capacity(s);
                 out.extend_from_slice(self.0.encode().as_ref());
                 out.extend_from_slice(self.1.encode().as_ref());
                 out.extend_from_slice(self.2.encode().as_ref());
                 out
             }
             KeySize::Variable => {
-                let mut out = self.0.encode().as_ref().to_vec();
+                let mut out = IVec::from(self.0.encode().as_ref());
                 out.extend_from_slice(self.1.encode().as_ref());
                 out.extend_from_slice(self.2.encode().as_ref());
                 out
@@ -416,14 +416,14 @@ where
     type OwnedKey = (A::OwnedKey, B::OwnedKey, C::OwnedKey, D::OwnedKey);
 
     type EncodedBytes<'a>
-        = Vec<u8>
+        = IVec
     where
         Self: 'a;
 
     fn encode(&self) -> Self::EncodedBytes<'_> {
         match Self::SIZE {
             KeySize::Fixed(s) => {
-                let mut out = Vec::with_capacity(s);
+                let mut out = IVec::with_capacity(s);
                 out.extend_from_slice(self.0.encode().as_ref());
                 out.extend_from_slice(self.1.encode().as_ref());
                 out.extend_from_slice(self.2.encode().as_ref());
@@ -431,7 +431,7 @@ where
                 out
             }
             KeySize::Variable => {
-                let mut out = self.0.encode().as_ref().to_vec();
+                let mut out = IVec::from(self.0.encode().as_ref());
                 out.extend_from_slice(self.1.encode().as_ref());
                 out.extend_from_slice(self.2.encode().as_ref());
                 out.extend_from_slice(self.3.encode().as_ref());
