@@ -9,7 +9,7 @@ where
     K: Key,
 {
     fn encode_prefix(&self) -> Vec<u8> {
-        self.encode()
+        self.encode().as_ref().to_vec()
     }
 }
 
