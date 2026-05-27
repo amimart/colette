@@ -762,4 +762,50 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn encode_string() {
+        // UTF-8 bytes followed by 0xff terminator (0xff is never a valid UTF-8 byte)
+        let cases: &[(&str, &[u8])] = &[
+            ("", &[0xff]),
+            ("hi", &[0x68, 0x69, 0xff]),
+            ("héllo", &[0x68, 0xc3, 0xa9, 0x6c, 0x6c, 0x6f, 0xff]),
+        ];
+        for &(value, expected) in cases {
+            assert_eq!(
+                value.to_string().encode().as_slice(),
+                expected,
+                "String::encode({value:?})"
+            );
+        }
+    }
+
+    #[test]
+    fn decode_part_string() {
+        let cases: &[(&[u8], &str, &[u8])] = &[
+            (&[0xff], "", &[]),
+            (&[0x68, 0x69, 0xff], "hi", &[]),
+            (&[0x68, 0xc3, 0xa9, 0x6c, 0x6c, 0x6f, 0xff], "héllo", &[]),
+            // bytes after the terminator become the remainder
+            (&[0x68, 0x69, 0xff, 0x01, 0x02], "hi", &[0x01, 0x02]),
+            (&[0xff, 0xde, 0xad], "", &[0xde, 0xad]),
+        ];
+        for &(bytes, expected, remainder) in cases {
+            let (value, rest) = String::decode_part(bytes);
+            assert_eq!(value, expected, "String::decode_part({bytes:02x?}) value");
+            assert_eq!(rest, remainder, "String::decode_part({bytes:02x?}) remainder");
+        }
+
+        let panic_cases: &[&[u8]] = &[
+            &[],                  // empty — no terminator
+            &[0x68, 0x69],        // missing 0xff terminator
+            &[0x80, 0xff],        // invalid UTF-8 (lone continuation byte)
+        ];
+        for &input in panic_cases {
+            assert!(
+                std::panic::catch_unwind(|| String::decode_part(input)).is_err(),
+                "expected panic for input {input:02x?}"
+            );
+        }
+    }
 }
