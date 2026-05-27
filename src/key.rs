@@ -110,7 +110,7 @@ pub fn encode_unsized_key_bytes(bytes: &[u8], out: &mut Vec<u8>) {
 ///
 /// Returns an error if the encoded bytes contain invalid escape sequences or
 /// are missing the terminating marker.
-pub fn decode_unsized_key_bytes(bytes: &[u8]) -> Vec<u8> {
+pub fn decode_unsized_key_bytes(bytes: &[u8]) -> (Vec<u8>, &[u8]) {
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
@@ -122,7 +122,7 @@ pub fn decode_unsized_key_bytes(bytes: &[u8]) -> Vec<u8> {
                 match next {
                     0x00 => {
                         // terminator
-                        return out;
+                        return (out, bytes.get(i + 2..).unwrap_or(&[]));
                     }
                     0xff => {
                         // escaped 0x00
@@ -217,6 +217,8 @@ impl Key for bool {
     }
 }
 
+/// As Rust Strings are guaranteed UTF-8 we don't need escaping, so we just use `0xff` (i.e.
+/// forbidden in utf-8) as end byte.
 impl Key for String {
     const SIZE: KeySize = KeySize::Variable;
 
@@ -250,36 +252,38 @@ impl Key for String {
 impl<const S: usize> Key for [u8; S] {
     const SIZE: KeySize = KeySize::Fixed(S);
 
-    fn encode_into(&self, out: &mut Vec<u8>) {
-        out.extend_from_slice(self);
-    }
+    type OwnedKey = Self;
 
-    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
+    type EncodedBytes<'a> = &'a Self
     where
-        Self: Sized
-    {
-        bytes.try_into().map_err(|_| DecodeKeyError::InvalidSize {
-            expected: S,
-            actual: bytes.len(),
-        })
+        Self: 'a;
+
+    fn encode(&self) -> Self::EncodedBytes<'_> {
+        self
     }
 
-    fn encode(&self) -> Vec<u8> {
-        self.as_ref().to_vec()
+    fn decode_part(bytes: &[u8]) -> (Self::OwnedKey, &[u8]) {
+        let (kbytes, r) = bytes.split_at(S);
+        (kbytes.try_into().unwrap(), r)
     }
 }
 
 impl Key for Vec<u8> {
     const SIZE: KeySize = KeySize::Variable;
 
-    fn encode_into(&self, out: &mut Vec<u8>) {
-        encode_unsized_key_bytes(self.as_slice(), out);
+    type OwnedKey = Self;
+
+    type EncodedBytes<'a> = Vec<u8>
+    where
+        Self: 'a;
+
+    fn encode(&self) -> Self::EncodedBytes<'_> {
+        let mut out = Vec::with_capacity(self.len()+2);
+        encode_unsized_key_bytes(self, &mut out);
+        out
     }
 
-    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
-    where
-        Self: Sized
-    {
+    fn decode_part(bytes: &[u8]) -> (Self::OwnedKey, &[u8]) {
         decode_unsized_key_bytes(bytes)
     }
 }
@@ -294,19 +298,32 @@ where
         _ => KeySize::Variable,
     };
 
-    fn encode_into(&self, out: &mut Vec<u8>) {
-        self.0.encode_into(out);
-        self.1.encode_into(out);
+    type OwnedKey = (A::OwnedKey, B::OwnedKey);
+
+    type EncodedBytes<'a> = Vec<u8>
+    where
+        Self: 'a;
+
+    fn encode(&self) -> Self::EncodedBytes<'_> {
+        match Self::SIZE {
+            KeySize::Fixed(s) => {
+                let mut out = Vec::with_capacity(s);
+                out.extend_from_slice(self.0.encode().as_ref());
+                out.extend_from_slice(self.1.encode().as_ref());
+                out
+            },
+            KeySize::Variable => {
+                let mut out = self.0.encode().as_ref().to_vec();
+                out.extend_from_slice(self.1.encode().as_ref());
+                out
+            },
+        }
     }
 
-    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
-    where
-        Self: Sized
-    {
-        Ok((
-            A::decode(bytes)?,
-            B::decode(bytes)?,
-        ))
+    fn decode_part(bytes: &[u8]) -> (Self::OwnedKey, &[u8]) {
+        let (a, r) = A::decode_part(bytes);
+        let (b, r) = B::decode_part(r);
+        ((a, b), r)
     }
 }
 
@@ -323,21 +340,35 @@ where
         _ => KeySize::Variable,
     };
 
-    fn encode_into(&self, out: &mut Vec<u8>) {
-        self.0.encode_into(out);
-        self.1.encode_into(out);
-        self.2.encode_into(out);
+    type OwnedKey = (A::OwnedKey, B::OwnedKey, C::OwnedKey);
+
+    type EncodedBytes<'a> = Vec<u8>
+    where
+        Self: 'a;
+
+    fn encode(&self) -> Self::EncodedBytes<'_> {
+        match Self::SIZE {
+            KeySize::Fixed(s) => {
+                let mut out = Vec::with_capacity(s);
+                out.extend_from_slice(self.0.encode().as_ref());
+                out.extend_from_slice(self.1.encode().as_ref());
+                out.extend_from_slice(self.2.encode().as_ref());
+                out
+            },
+            KeySize::Variable => {
+                let mut out = self.0.encode().as_ref().to_vec();
+                out.extend_from_slice(self.1.encode().as_ref());
+                out.extend_from_slice(self.2.encode().as_ref());
+                out
+            },
+        }
     }
 
-    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
-    where
-        Self: Sized
-    {
-        Ok((
-            A::decode(bytes)?,
-            B::decode(bytes)?,
-            C::decode(bytes)?,
-        ))
+    fn decode_part(bytes: &[u8]) -> (Self::OwnedKey, &[u8]) {
+        let (a, r) = A::decode_part(bytes);
+        let (b, r) = B::decode_part(r);
+        let (c, r) = C::decode_part(r);
+        ((a, b, c), r)
     }
 }
 
@@ -355,23 +386,38 @@ where
         _ => KeySize::Variable,
     };
 
-    fn encode_into(&self, out: &mut Vec<u8>) {
-        self.0.encode_into(out);
-        self.1.encode_into(out);
-        self.2.encode_into(out);
-        self.3.encode_into(out);
+    type OwnedKey = (A::OwnedKey, B::OwnedKey, C::OwnedKey, D::OwnedKey);
+
+    type EncodedBytes<'a> = Vec<u8>
+    where
+        Self: 'a;
+
+    fn encode(&self) -> Self::EncodedBytes<'_> {
+        match Self::SIZE {
+            KeySize::Fixed(s) => {
+                let mut out = Vec::with_capacity(s);
+                out.extend_from_slice(self.0.encode().as_ref());
+                out.extend_from_slice(self.1.encode().as_ref());
+                out.extend_from_slice(self.2.encode().as_ref());
+                out.extend_from_slice(self.3.encode().as_ref());
+                out
+            },
+            KeySize::Variable => {
+                let mut out = self.0.encode().as_ref().to_vec();
+                out.extend_from_slice(self.1.encode().as_ref());
+                out.extend_from_slice(self.2.encode().as_ref());
+                out.extend_from_slice(self.3.encode().as_ref());
+                out
+            },
+        }
     }
 
-    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
-    where
-        Self: Sized
-    {
-        Ok((
-            A::decode(bytes)?,
-            B::decode(bytes)?,
-            C::decode(bytes)?,
-            D::decode(bytes)?,
-        ))
+    fn decode_part(bytes: &[u8]) -> (Self::OwnedKey, &[u8]) {
+        let (a, r) = A::decode_part(bytes);
+        let (b, r) = B::decode_part(r);
+        let (c, r) = C::decode_part(r);
+        let (d, r) = D::decode_part(r);
+        ((a, b, c, d), r)
     }
 }
 
