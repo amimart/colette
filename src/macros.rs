@@ -4,20 +4,18 @@ macro_rules! impl_unsigned_integer_key {
         impl Key for $ty {
             const SIZE: KeySize = KeySize::Fixed(std::mem::size_of::<$ty>());
 
-            fn encode_into(&self, out: &mut Vec<u8>) {
-                out.extend_from_slice(&self.to_be_bytes());
+            type OwnedKey = $ty;
+
+            type EncodedRef<'a> = [u8; std::mem::size_of::<$ty>()]
+            where
+                Self: 'a;
+
+            fn encode(&self) -> Self::EncodedRef<'_> {
+                self.to_be_bytes()
             }
 
-            fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError> {
-                let bytes: [u8; std::mem::size_of::<$ty>()] =
-                    bytes.try_into().map_err(|_| {
-                        DecodeKeyError::InvalidSize {
-                            expected: std::mem::size_of::<$ty>(),
-                            actual: bytes.len(),
-                        }
-                    })?;
-
-                Ok(<$ty>::from_be_bytes(bytes))
+            fn decode(bytes: &[u8]) -> Self::OwnedKey {
+                <$ty>::from_be_bytes(bytes.try_into().unwrap())
             }
         }
     };
@@ -27,24 +25,22 @@ macro_rules! impl_unsigned_integer_key {
 macro_rules! impl_signed_integer_key {
     ($signed:ty => $unsigned:ty) => {
         impl Key for $signed {
-            const SIZE: KeySize = KeySize::Fixed(std::mem::size_of::<$signed>());
+            const SIZE: KeySize = KeySize::Fixed(std::mem::size_of::<$unsigned>());
 
-            fn encode_into(&self, out: &mut Vec<u8>) {
+            type OwnedKey = $signed;
+
+            type EncodedRef<'a> = [u8; std::mem::size_of::<$unsigned>()]
+            where
+                Self: 'a;
+
+            fn encode(&self) -> Self::EncodedRef<'_> {
                 let sortable = (*self as $unsigned) ^ <$signed>::MIN as $unsigned;
-                out.extend_from_slice(&sortable.to_be_bytes());
+                sortable.to_be_bytes()
             }
 
-            fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError> {
-                let bytes: [u8; std::mem::size_of::<$signed>()] =
-                    bytes.try_into().map_err(|_| {
-                        DecodeKeyError::InvalidSize {
-                            expected: std::mem::size_of::<$signed>(),
-                            actual: bytes.len(),
-                        }
-                    })?;
-
-                let sortable = <$unsigned>::from_be_bytes(bytes);
-                Ok((sortable ^ <$signed>::MIN as $unsigned) as $signed)
+            fn decode(bytes: &[u8]) -> Self::OwnedKey {
+                let sortable = <$unsigned>::from_be_bytes(bytes.try_into().unwrap());
+                (sortable ^ <$signed>::MIN as $unsigned) as $signed
             }
         }
     };
@@ -56,25 +52,23 @@ macro_rules! impl_enum_key {
         impl Key for $ty {
             const SIZE: KeySize = KeySize::Fixed(std::mem::size_of::<$int>());
 
-            fn encode_into(&self, out: &mut Vec<u8>) {
-                let value: $int = match self {
-                    $($variant => $value,)+
-                };
+            type OwnedKey = Self;
 
-                value.encode_into(out);
+            type EncodedRef<'a> = [u8; std::mem::size_of::<$int>()]
+            where
+                Self: 'a;
+
+            fn encode(&self) -> Self::EncodedRef<'_> {
+                match self {
+                    $($variant => $value,)+
+                }.to_be_bytes()
             }
 
-            fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
-            where
-                Self: Sized
-            {
-                let value = <$int>::decode(bytes)?;
+            fn decode(bytes: &[u8]) -> Self::OwnedKey {
+                let value = <$int>::from_be_bytes(bytes.try_into().unwrap());
                 match value {
-                    $($value => Ok($variant),)+
-                    _ => Err(DecodeKeyError::InvalidBytes(format!(
-                        "invalid enum discriminant {value} for type {}",
-                        stringify!($ty)
-                    ))),
+                    $($value => $variant,)+
+                    _ => panic!("invalid enum discriminant {value} for type {}", stringify!($ty)),
                 }
             }
         }
