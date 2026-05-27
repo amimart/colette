@@ -19,7 +19,7 @@ pub trait Index<Record: Entity> {
 
     fn key(entity: &Record) -> Self::Key<'_>;
 
-    fn set<'a, DB: MultiStoreWriteHandle>(
+    fn update<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
         old: Option<(&Record::Key<'a>, &'a Record)>,
         new: (&Record::Key<'a>, &'a Record),

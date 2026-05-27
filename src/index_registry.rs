@@ -12,7 +12,7 @@ pub struct Cons<Head, Tail>(PhantomData<(Head, Tail)>);
 
 /// IndexRegistry is a recursive HList trait to allow defining multiple indexes as generic types.
 pub trait IndexRegistry<T: Entity> {
-    fn set<'a, DB: MultiStoreWriteHandle>(
+    fn update<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
         old: Option<(&T::Key<'a>, &'a T)>,
         new: (&T::Key<'a>, &'a T),
@@ -30,7 +30,7 @@ impl<T> IndexRegistry<T> for Nil
 where
     T: Entity,
 {
-    fn set<'a, DB: MultiStoreWriteHandle>(
+    fn update<'a, DB: MultiStoreWriteHandle>(
         _db: &mut DB,
         _old: Option<(&T::Key<'a>, &'a T)>,
         _new: (&T::Key<'a>, &'a T),
@@ -57,13 +57,13 @@ where
     Tail: IndexRegistry<T>,
     for<'a> Head::Kind<'a>: IndexKind<Head::Key<'a>, T::Key<'a>>,
 {
-    fn set<'a, DB: MultiStoreWriteHandle>(
+    fn update<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
         old: Option<(&T::Key<'a>, &'a T)>,
         new: (&T::Key<'a>, &'a T),
     ) -> Result<(), Error> {
-        Head::set(db, old, new)?;
-        Tail::set(db, old, new)
+        Head::update(db, old, new)?;
+        Tail::update(db, old, new)
     }
 
     fn remove<'a, DB: MultiStoreWriteHandle>(
@@ -135,7 +135,7 @@ mod tests {
                 fn key(r: &Record) -> u32 {
                     r.0
                 }
-                fn set<DB: MultiStoreWriteHandle>(
+                fn update<DB: MultiStoreWriteHandle>(
                     db: &mut DB,
                     _old: Option<(&u32, &Record)>,
                     _new: (&u32, &Record),
@@ -164,7 +164,7 @@ mod tests {
         fn key(r: &Record) -> u32 {
             r.0
         }
-        fn set<DB: MultiStoreWriteHandle>(
+        fn update<DB: MultiStoreWriteHandle>(
             _db: &mut DB,
             _old: Option<(&u32, &Record)>,
             _new: (&u32, &Record),
@@ -271,19 +271,19 @@ mod tests {
     // ── set ───────────────────────────────────────────────────────────────────
 
     #[test]
-    fn set() {
+    fn update() {
         let record = Record(1);
         let pk = 1u32;
 
         let cases: &[(&dyn Fn(&mut Spy) -> Result<(), Error>, &[&str], bool)] = &[
             (
-                &|s| <Nil as IndexRegistry<Record>>::set(s, None, (&pk, &record)),
+                &|s| <Nil as IndexRegistry<Record>>::update(s, None, (&pk, &record)),
                 &[],
                 false,
             ),
             (
                 &|s| {
-                    <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::set(
+                    <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::update(
                         s,
                         None,
                         (&pk, &record),
@@ -294,7 +294,7 @@ mod tests {
             ),
             (
                 &|s| {
-                    <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<Record>>::set(
+                    <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<Record>>::update(
                         s,
                         None,
                         (&pk, &record),
