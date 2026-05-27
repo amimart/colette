@@ -220,19 +220,30 @@ impl Key for bool {
 impl Key for String {
     const SIZE: KeySize = KeySize::Variable;
 
-    fn encode_into(&self, out: &mut Vec<u8>) {
-        encode_unsized_key_bytes(self.as_bytes(), out);
+    type OwnedKey = Self;
+
+    type EncodedBytes<'a> = Vec<u8>
+    where
+        Self: 'a;
+
+    fn encode(&self) -> Self::EncodedBytes<'_> {
+        let mut out = Vec::with_capacity(self.len()+1);
+        out.extend_from_slice(self.as_bytes());
+        out.push(0xff);
+        out
     }
 
-    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
-    where
-        Self: Sized
-    {
-        let bytes = decode_unsized_key_bytes(bytes)?;
-        String::from_utf8(bytes)
-            .map_err(|e| DecodeKeyError::InvalidBytes(format!(
-                "invalid utf-8 string bytes: {e}"
-            )))
+    fn decode_part(bytes: &[u8]) -> (Self::OwnedKey, &[u8]) {
+        let end_str_pos = bytes.iter().position(|&b| b == 0xff).unwrap();
+        let (strbytes, tail) = bytes.split_at(end_str_pos);
+
+        (
+            str::from_utf8(strbytes).unwrap().to_string(),
+            match tail {
+                [_, r @ ..] => r,
+                _ => panic!("invalid encoded string bytes"),
+            },
+        )
     }
 }
 
