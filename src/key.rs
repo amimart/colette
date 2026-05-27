@@ -461,6 +461,43 @@ impl<A: Key, B: Key, C: Key, PK: Key> AppendKey<PK> for (A, B, C) {
 
 #[cfg(test)]
 mod tests {
+    use super::Key;
+
+    #[test]
+    fn decode() {
+        // u32 — unsigned big-endian
+        let cases: &[(&[u8], u32)] = &[
+            (&[0x00, 0x00, 0x00, 0x00], 0),
+            (&[0x00, 0x00, 0x00, 0x01], 1),
+            (&[0xff, 0xff, 0xff, 0xff], u32::MAX),
+        ];
+        for &(bytes, expected) in cases {
+            assert_eq!(u32::decode(bytes), expected, "u32::decode({bytes:02x?})");
+        }
+
+        // Vec<u8> — null-escaped, terminated by [0x00, 0x00]
+        let cases: &[(&[u8], &[u8])] = &[
+            (&[0x00, 0x00], &[]),
+            (&[0x01, 0x02, 0x00, 0x00], &[0x01, 0x02]),
+            (&[0x00, 0xff, 0x00, 0x00], &[0x00]),
+        ];
+        for &(bytes, expected) in cases {
+            assert_eq!(Vec::<u8>::decode(bytes), expected, "Vec<u8>::decode({bytes:02x?})");
+        }
+
+        // panics when extra bytes remain after a fully decoded key
+        let panic_cases: &[&dyn Fn()] = &[
+            &|| { u32::decode(&[0x00, 0x00, 0x00, 0x01, 0xff]); },
+            &|| { bool::decode(&[0x00, 0x01]); },
+            &|| { String::decode(&[b'a', 0xff, b'b']); },
+        ];
+        for &case in panic_cases {
+            assert!(
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(case)).is_err(),
+                "expected panic for trailing bytes"
+            );
+        }
+    }
 
     #[test]
     fn encode_unsized_key_bytes() {
