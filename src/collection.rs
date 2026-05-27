@@ -49,6 +49,8 @@ where
             }
 
             store.set(&enc_pk, &value.to_bytes()?)?;
+
+            Indexes::update(&mut tx, None, (&pk, &value))?;
         }
 
         tx.commit().map_err(Error::Backend)
