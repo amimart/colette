@@ -56,8 +56,7 @@ pub trait Index<Record: Entity> {
         target: (&Record::Key<'a>, &'a Record),
     ) -> Result<(), Error> {
         let mut store = db.open_store(Self::NAME)?;
-        let ikey = Self::key(target.1);
-        let skey = Self::Kind::store_key(ikey, target.0);
+        let skey = Self::Kind::store_key(Self::key(target.1), target.0);
 
         store.remove(skey.encode()).map_err(Error::Backend)
     }
