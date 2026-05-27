@@ -1003,6 +1003,75 @@ mod tests {
     }
 
     #[test]
+    fn encode_ref_key() {
+        // &K encodes identically to K — no extra bytes, SIZE unchanged
+        assert_eq!((&1u32).encode().as_ref(), 1u32.encode().as_ref());
+        assert_eq!((&true).encode().as_ref(), true.encode().as_ref());
+
+        // variable-size types: lifetime chains through EncodedBytes correctly
+        let s = "hi".to_string();
+        assert_eq!((&s).encode().as_slice(), s.encode().as_slice());
+
+        let v = vec![0x00u8, 0x42];
+        assert_eq!((&v).encode().as_slice(), v.encode().as_slice());
+    }
+
+    #[test]
+    fn decode_part_ref_key() {
+        // &K::decode_part delegates to K::decode_part — decodes to OwnedKey, not a reference
+        let cases: &[(&[u8], u32, &[u8])] = &[
+            (&[0x00, 0x00, 0x00, 0x01], 1, &[]),
+            (&[0x00, 0x00, 0x00, 0x01, 0xde, 0xad], 1, &[0xde, 0xad]),
+        ];
+        for &(bytes, expected, remainder) in cases {
+            let (value, rest) = <&u32>::decode_part(bytes);
+            assert_eq!(value, expected, "&u32::decode_part({bytes:02x?}) value");
+            assert_eq!(rest, remainder, "&u32::decode_part({bytes:02x?}) remainder");
+        }
+
+        // variable-size type: same framing as String::decode_part
+        let (value, rest) = <&String>::decode_part(&[0x68, 0x69, 0xff, 0x01]);
+        assert_eq!(value, "hi");
+        assert_eq!(rest, &[0x01]);
+    }
+
+    #[test]
+    fn encode_single_tuple_key() {
+        // (K,) encodes identically to K — same bytes, no wrapper overhead
+        assert_eq!((1u32,).encode().as_ref(), 1u32.encode().as_ref());
+        assert_eq!((true,).encode().as_ref(), true.encode().as_ref());
+
+        // variable-size types
+        assert_eq!(
+            ("hi".to_string(),).encode().as_slice(),
+            "hi".to_string().encode().as_slice()
+        );
+        assert_eq!(
+            (vec![0x00u8, 0x42],).encode().as_slice(),
+            vec![0x00u8, 0x42].encode().as_slice()
+        );
+    }
+
+    #[test]
+    fn decode_part_single_tuple_key() {
+        // (K,)::decode_part wraps the decoded value in a 1-tuple — distinct from K::decode_part
+        let cases: &[(&[u8], (u32,), &[u8])] = &[
+            (&[0x00, 0x00, 0x00, 0x01], (1,), &[]),
+            (&[0x00, 0x00, 0x00, 0x01, 0xde, 0xad], (1,), &[0xde, 0xad]),
+        ];
+        for &(bytes, expected, remainder) in cases {
+            let (value, rest) = <(u32,)>::decode_part(bytes);
+            assert_eq!(value, expected, "(u32,)::decode_part({bytes:02x?}) value");
+            assert_eq!(rest, remainder, "(u32,)::decode_part({bytes:02x?}) remainder");
+        }
+
+        // variable-size type: framing consumed, result wrapped in 1-tuple
+        let (value, rest) = <(String,)>::decode_part(&[0x68, 0x69, 0xff, 0x01]);
+        assert_eq!(value, ("hi".to_string(),));
+        assert_eq!(rest, &[0x01]);
+    }
+
+    #[test]
     fn append_key() {
         use super::AppendKey;
 
