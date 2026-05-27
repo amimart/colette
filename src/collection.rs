@@ -7,26 +7,24 @@ use crate::scan::IndexScan;
 use crate::store::{MultiStore, MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
 use std::marker::PhantomData;
 
-pub struct Collection<DB, PrimaryKey, Record, Indexes>
+pub struct Collection<'a, DB, Record, Indexes>
 where
     DB: MultiStore,
-    PrimaryKey: Key,
     // The stored record implementing the Entity contract
-    Record: Entity<PrimaryKey>,
-    Indexes: IndexRegistry<PrimaryKey, Record>,
+    Record: Entity + 'a,
+    Indexes: IndexRegistry<'a, Record>,
 {
     name: &'static str,
     db: DB,
 
-    _marker: PhantomData<(PrimaryKey, Record, Indexes)>,
+    _marker: PhantomData<(&'a Record, Indexes)>,
 }
 
-impl<DB, PrimaryKey, Record, Indexes> Collection<DB, PrimaryKey, Record, Indexes>
+impl<'a, DB, Record, Indexes> Collection<'a, DB, Record, Indexes>
 where
     DB: MultiStore,
-    PrimaryKey: Key,
-    Record: Entity<PrimaryKey>,
-    Indexes: IndexRegistry<PrimaryKey, Record>,
+    Record: Entity + 'a,
+    Indexes: IndexRegistry<'a, Record>,
 {
     const MAIN_STORE: &'static str = "__main";
 
@@ -38,32 +36,33 @@ where
         }
     }
 
-    pub fn builder<K, T>(name: &'static str, db: DB) -> CollectionBuilder<DB, K, T, Nil>
+    pub fn builder<K, T>(name: &'static str, db: DB) -> CollectionBuilder<'static, DB, T, Nil>
     where
         K: Key,
-        T: Entity<K>,
+        T: Entity,
     {
         CollectionBuilder::new(name, db)
     }
 
     pub fn insert(&self, value: Record) -> Result<(), Error> {
-        let pk = value.key().encode();
+        let pk = value.key();
+        let enc_pk = pk.encode();
         let mut tx = self.db.write(self.name)?;
 
         {
             let mut store = tx.open_store(Self::MAIN_STORE)?;
 
-            if store.get(&pk)?.is_some() {
+            if store.get(&enc_pk)?.is_some() {
                 Err(Error::AlreadyExists(self.name.to_string()))?
             }
 
-            store.set(&pk, &value.to_bytes()?)?;
+            store.set(&enc_pk, &value.to_bytes()?)?;
         }
 
         tx.commit().map_err(Error::Backend)
     }
 
-    pub fn get(&self, _key: PrimaryKey) -> Result<Option<Record>, Error> {
+    pub fn get(&self, _key: Record::Key<'_>) -> Result<Option<Record>, Error> {
         Ok(None)
     }
 
@@ -75,42 +74,40 @@ where
         Ok(())
     }
 
-    pub fn remove(&self, _key: PrimaryKey) -> Result<(), Error> {
+    pub fn remove(&self, _key: Record::Key<'_>) -> Result<(), Error> {
         Ok(())
     }
 
     pub fn index<Idx, P>(
         &self,
         _idx: Idx,
-    ) -> Result<IndexScan<'_, DB::ReadHandle, PrimaryKey, Record, Idx>, Error>
+    ) -> Result<IndexScan<'a, DB::ReadHandle, Record, Idx>, Error>
     where
-        Idx: Index<PrimaryKey, Record>,
-        Idx::Kind: IndexKind<Idx::Key, PrimaryKey>,
+        Idx: Index<'a, Record>,
+        Idx::Kind: IndexKind<Idx::Key, Record::Key<'a>>,
         Indexes: ContainsIndex<Idx, P>,
     {
         Ok(IndexScan::new(self.name, self.db.read(self.name)?))
     }
 }
 
-pub struct CollectionBuilder<DB, PrimaryKey, Record, Indexes>
+pub struct CollectionBuilder<'a, DB, Record, Indexes>
 where
     DB: MultiStore,
-    PrimaryKey: Key,
-    Record: Entity<PrimaryKey>,
-    Indexes: IndexRegistry<PrimaryKey, Record>,
+    Record: Entity + 'a,
+    Indexes: IndexRegistry<'a, Record>,
 {
     name: &'static str,
     db: DB,
 
-    _marker: PhantomData<(PrimaryKey, Record, Indexes)>,
+    _marker: PhantomData<(&'a Record, Indexes)>,
 }
 
-impl<DB, PrimaryKey, Record, Indexes> CollectionBuilder<DB, PrimaryKey, Record, Indexes>
+impl<'a, DB, Record, Indexes> CollectionBuilder<'a, DB, Record, Indexes>
 where
     DB: MultiStore,
-    PrimaryKey: Key,
-    Record: Entity<PrimaryKey>,
-    Indexes: IndexRegistry<PrimaryKey, Record>,
+    Record: Entity + 'a,
+    Indexes: IndexRegistry<'a, Record>,
 {
     pub fn new(name: &'static str, db: DB) -> Self {
         Self {
@@ -120,9 +117,9 @@ where
         }
     }
 
-    pub fn with_index<Idx>(self) -> CollectionBuilder<DB, PrimaryKey, Record, Cons<Idx, Indexes>>
+    pub fn with_index<Idx>(self) -> CollectionBuilder<'a, DB, Record, Cons<Idx, Indexes>>
     where
-        Idx: Index<PrimaryKey, Record>,
+        Idx: Index<'a, Record>,
     {
         assert!(
             !Indexes::has_index(Idx::NAME),
@@ -133,7 +130,7 @@ where
         CollectionBuilder::new(self.name, self.db)
     }
 
-    pub fn build(self) -> Collection<DB, PrimaryKey, Record, Indexes> {
+    pub fn build(self) -> Collection<'a, DB, Record, Indexes> {
         Collection::new(self.name, self.db)
     }
 }

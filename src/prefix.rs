@@ -9,7 +9,7 @@ where
     K: Key,
 {
     fn encode_prefix(&self) -> Vec<u8> {
-        self.encode()
+        self.encode().as_ref().to_vec()
     }
 }
 
@@ -50,6 +50,24 @@ where
     A: Key,
     B: Key,
     C: Key,
+{
+}
+
+impl<A, B, C, D> Prefixable<A> for (A, B, C, D)
+where
+    A: Key,
+    B: Key,
+    C: Key,
+    D: Key,
+{
+}
+
+impl<A, B, C, D> Prefixable<(A, B)> for (A, B, C, D)
+where
+    A: Key,
+    B: Key,
+    C: Key,
+    D: Key,
 {
 }
 
