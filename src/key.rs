@@ -36,20 +36,26 @@ use crate::{impl_signed_integer_key, impl_unsigned_integer_key};
 ///
 /// Changing a `Key` implementation changes the physical storage layout and
 /// should be treated as a migration.
-pub trait Key {
+pub trait Key: Eq {
     /// The encoded size of the key.
     ///
     /// Fixed-size keys allow Colette to preallocate buffers efficiently.
     const SIZE: KeySize;
 
-    /// Encodes the key into the provided buffer.
+    type OwnedKey: Key + Sized;
+
+    type EncodedRef<'a>: AsRef<[u8]> + 'a
+    where
+        Self: 'a;
+
+    /// Returns the encoded key.
     ///
-    /// Implementations should append their encoded representation to `out`
-    /// without clearing it.
+    /// Implementations should rely if possible on the underlying bytes of the key (e.g. for
+    /// fixed-size keys) to avoid unnecessary allocations.
     ///
     /// Variable-size keys should use Colette encoding helper (i.e. `encode_unsized_key_bytes`) to
     /// ensure their encoded representation remains safe for composite keys and prefix scans.
-    fn encode_into(&self, out: &mut Vec<u8>);
+    fn encode(&self) -> Self::EncodedRef<'_>;
 
     /// Decodes a key from its encoded representation.
     ///
@@ -58,46 +64,13 @@ pub trait Key {
     ///
     /// Variable-size keys should use Colette decoding helper (i.e. `decode_unsized_key_bytes`) to
     /// decode escaped and framed key bytes correctly.
-    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError>
-    where
-        Self: Sized;
-
-    /// Encodes the key into a newly allocated buffer.
-    ///
-    /// This is a convenience helper built on top of `encode_into`.
-    fn encode(&self) -> Vec<u8> {
-        let mut out = match Self::SIZE {
-            KeySize::Fixed(size) => Vec::with_capacity(size),
-            KeySize::Variable => Vec::new(),
-        };
-
-        self.encode_into(&mut out);
-        out
-    }
+    fn decode(bytes: &[u8]) -> Self::OwnedKey;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeySize {
     Fixed(usize),
     Variable,
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum DecodeKeyError {
-    #[error("invalid size: expected {expected}, got {actual}:")]
-    InvalidSize { expected: usize, actual: usize },
-
-    #[error("invalid bytes: {0}")]
-    InvalidBytes(String),
-
-    #[error("unexpected end of input")]
-    UnexpectedEnd,
-
-    #[error("invalid escape sequence: 0x00 0x{0:02x}")]
-    InvalidEscapeSequence(u8),
-
-    #[error("missing key terminator")]
-    MissingTerminator,
 }
 
 /// Encodes variable-size key bytes using Colette escaping and framing rules.
@@ -124,7 +97,7 @@ pub fn encode_unsized_key_bytes(bytes: &[u8], out: &mut Vec<u8>) {
 ///
 /// Returns an error if the encoded bytes contain invalid escape sequences or
 /// are missing the terminating marker.
-pub fn decode_unsized_key_bytes(bytes: &[u8]) -> Result<Vec<u8>, DecodeKeyError> {
+pub fn decode_unsized_key_bytes(bytes: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
@@ -132,11 +105,11 @@ pub fn decode_unsized_key_bytes(bytes: &[u8]) -> Result<Vec<u8>, DecodeKeyError>
             0x00 => {
                 let next = bytes
                     .get(i + 1)
-                    .ok_or(DecodeKeyError::UnexpectedEnd)?;
+                    .unwrap();
                 match next {
                     0x00 => {
                         // terminator
-                        return Ok(out);
+                        return out;
                     }
                     0xff => {
                         // escaped 0x00
@@ -144,9 +117,7 @@ pub fn decode_unsized_key_bytes(bytes: &[u8]) -> Result<Vec<u8>, DecodeKeyError>
                         i += 2;
                     }
                     other => {
-                        return Err(
-                            DecodeKeyError::InvalidEscapeSequence(*other)
-                        );
+                        panic!("invalid escape sequence in encoded key bytes: expected 0x00 0x00 or 0x00 0xff, got 0x00 {other:02x}");
                     }
                 }
             }
@@ -156,17 +127,24 @@ pub fn decode_unsized_key_bytes(bytes: &[u8]) -> Result<Vec<u8>, DecodeKeyError>
             }
         }
     }
-    Err(DecodeKeyError::MissingTerminator)
+    panic!("unterminated encoded key bytes: expected terminator 0x00 0x00 not found");
 }
 
-impl<K: Key> Key for &K {
+impl<K: Key> Key for &K
+{
     const SIZE: KeySize = K::SIZE;
 
-    fn encode_into(&self, out: &mut Vec<u8>) {
-        (*self).encode_into(out);
+    type OwnedKey = K::OwnedKey;
+
+    type EncodedRef<'a> = K::EncodedRef<'a>
+    where
+        Self: 'a;
+
+    fn encode(&self) -> Self::EncodedRef<'_> {
+        (*self).encode()
     }
 
-    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError> {
+    fn decode(bytes: &[u8]) -> Self::OwnedKey {
         K::decode(bytes)
     }
 }
@@ -174,12 +152,18 @@ impl<K: Key> Key for &K {
 impl<K: Key> Key for (K,) {
     const SIZE: KeySize = K::SIZE;
 
-    fn encode_into(&self, out: &mut Vec<u8>) {
-        self.0.encode_into(out);
+    type OwnedKey = (K::OwnedKey,);
+
+    type EncodedRef<'a> = K::EncodedRef<'a>
+    where
+        Self: 'a;
+
+    fn encode(&self) -> Self::EncodedRef<'_> {
+        self.0.encode()
     }
 
-    fn decode(bytes: &[u8]) -> Result<Self, DecodeKeyError> {
-        Ok((K::decode(bytes)?,))
+    fn decode(bytes: &[u8]) -> Self::OwnedKey {
+        (K::decode(bytes),)
     }
 }
 
