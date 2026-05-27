@@ -11,39 +11,37 @@ pub struct There<Tail>(PhantomData<Tail>);
 pub struct Cons<Head, Tail>(PhantomData<(Head, Tail)>);
 
 /// IndexRegistry is a recursive HList trait to allow defining multiple indexes as generic types.
-pub trait IndexRegistry<'a, T: Entity>
-where
-    T: 'a,
+pub trait IndexRegistry<T: Entity>
 {
-    fn set<DB: MultiStoreWriteHandle>(
+    fn set<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        old: Option<(&T::Key<'a>, &T)>,
-        new: (&T::Key<'a>, &T),
+        old: Option<(&T::Key<'a>, &'a T)>,
+        new: (&T::Key<'a>, &'a T),
     ) -> Result<(), Error>;
 
-    fn remove<DB: MultiStoreWriteHandle>(
+    fn remove<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        target: (&T::Key<'a>, &T),
+        target: (&T::Key<'a>, &'a T),
     ) -> Result<(), Error>;
 
     fn has_index(name: &str) -> bool;
 }
 
-impl<'a, T> IndexRegistry<'a, T> for Nil
+impl<T> IndexRegistry<T> for Nil
 where
-    T: Entity + 'a,
+    T: Entity,
 {
-    fn set<DB: MultiStoreWriteHandle>(
+    fn set<'a, DB: MultiStoreWriteHandle>(
         _db: &mut DB,
-        _old: Option<(&T::Key<'a>, &T)>,
-        _new: (&T::Key<'a>, &T),
+        _old: Option<(&T::Key<'a>, &'a T)>,
+        _new: (&T::Key<'a>, &'a T),
     ) -> Result<(), Error> {
         Ok(())
     }
 
-    fn remove<DB: MultiStoreWriteHandle>(
+    fn remove<'a, DB: MultiStoreWriteHandle>(
         _db: &mut DB,
-        _target: (&T::Key<'a>, &T),
+        _target: (&T::Key<'a>, &'a T),
     ) -> Result<(), Error> {
         Ok(())
     }
@@ -53,25 +51,25 @@ where
     }
 }
 
-impl<'a, T, Head, Tail> IndexRegistry<'a, T> for Cons<Head, Tail>
+impl<T, Head, Tail> IndexRegistry<T> for Cons<Head, Tail>
 where
-    T: Entity + 'a,
-    Head: Index<'a, T>,
-    Head::Kind: IndexKind<Head::Key, T::Key<'a>>,
-    Tail: IndexRegistry<'a, T>,
+    T: Entity,
+    Head: Index<T>,
+    Tail: IndexRegistry<T>,
+    for<'a> Head::Kind<'a>: IndexKind<Head::Key<'a>, T::Key<'a>>,
 {
-    fn set<DB: MultiStoreWriteHandle>(
+    fn set<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        old: Option<(&T::Key<'a>, &T)>,
-        new: (&T::Key<'a>, &T),
+        old: Option<(&T::Key<'a>, &'a T)>,
+        new: (&T::Key<'a>, &'a T),
     ) -> Result<(), Error> {
         Head::set(db, old, new)?;
         Tail::set(db, old, new)
     }
 
-    fn remove<DB: MultiStoreWriteHandle>(
+    fn remove<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        target: (&T::Key<'a>, &T),
+        target: (&T::Key<'a>, &'a T),
     ) -> Result<(), Error> {
         Head::remove(db, target)?;
         Tail::remove(db, target)
@@ -131,9 +129,9 @@ mod tests {
 
     macro_rules! spy_index {
         ($ty:ty, $name:literal) => {
-            impl<'a> Index<'a, Record> for $ty {
-                type Key = u32;
-                type Kind = Unique;
+            impl Index<Record> for $ty {
+                type Key<'a> = u32;
+                type Kind<'a> = Unique;
                 const NAME: &'static str = $name;
                 fn key(r: &Record) -> u32 {
                     r.0
@@ -160,9 +158,9 @@ mod tests {
     spy_index!(IndexA, "index_a");
     spy_index!(IndexB, "index_b");
 
-    impl<'a> Index<'a, Record> for FailIndex {
-        type Key = u32;
-        type Kind = Unique;
+    impl Index<Record> for FailIndex {
+        type Key<'a> = u32;
+        type Kind<'a> = Unique;
         const NAME: &'static str = "fail";
         fn key(r: &Record) -> u32 {
             r.0
