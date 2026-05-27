@@ -1001,5 +1001,68 @@ mod tests {
         assert_eq!(value, (1u8, "hi".to_string(), 2u8, true));
         assert_eq!(rest, &[0xee]);
     }
+
+    #[test]
+    fn append_key() {
+        use super::AppendKey;
+
+        // (K,) → (K, &PK): 1-element index key with PK appended
+        let cases: &[((u32,), u8, &[u8])] = &[
+            ((0,), 0, &[0x00, 0x00, 0x00, 0x00, 0x00]),
+            ((1,), 2, &[0x00, 0x00, 0x00, 0x01, 0x02]),
+            ((u32::MAX,), u8::MAX, &[0xff, 0xff, 0xff, 0xff, 0xff]),
+        ];
+        for (index_key, pk, expected) in cases {
+            assert_eq!(
+                index_key.append(pk).encode().as_slice(),
+                *expected,
+                "({index_key:?}).append({pk}) encode"
+            );
+        }
+
+        // (K,) with variable-size PK: Vec<u8> as primary key
+        assert_eq!(
+            (1u8,).append(&vec![0x02u8, 0x03]).encode().as_slice(),
+            &[0x01, 0x02, 0x03, 0x00, 0x00]
+        );
+
+        // (A, B) → (A, B, &PK): 2-element index key with PK appended
+        let cases: &[((u8, bool), u32, &[u8])] = &[
+            ((1, false), 0, &[0x01, 0x00, 0x00, 0x00, 0x00, 0x00]),
+            ((2, true), 100, &[0x02, 0x01, 0x00, 0x00, 0x00, 0x64]),
+        ];
+        for (index_key, pk, expected) in cases {
+            assert_eq!(
+                index_key.append(pk).encode().as_slice(),
+                *expected,
+                "({index_key:?}).append({pk}) encode"
+            );
+        }
+
+        // (A, B) with variable-size index field and fixed PK
+        assert_eq!(
+            ("hi".to_string(), 1u8).append(&42u32).encode().as_slice(),
+            &[0x68, 0x69, 0xff, 0x01, 0x00, 0x00, 0x00, 0x2a]
+        );
+
+        // (A, B, C) → (A, B, C, &PK): 3-element index key with PK appended
+        let cases: &[((u8, bool, u8), u8, &[u8])] = &[
+            ((1, true, 2), 3, &[0x01, 0x01, 0x02, 0x03]),
+            ((0, false, 255), 0, &[0x00, 0x00, 0xff, 0x00]),
+        ];
+        for (index_key, pk, expected) in cases {
+            assert_eq!(
+                index_key.append(pk).encode().as_slice(),
+                *expected,
+                "({index_key:?}).append({pk}) encode"
+            );
+        }
+
+        // (A, B, C) with variable-size PK: String as primary key
+        assert_eq!(
+            (1u8, true, 2u8).append(&"pk".to_string()).encode().as_slice(),
+            &[0x01, 0x01, 0x02, 0x70, 0x6b, 0xff]
+        );
+    }
 }
 
