@@ -7,24 +7,24 @@ use crate::scan::IndexScan;
 use crate::store::{MultiStore, MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
 use std::marker::PhantomData;
 
-pub struct Collection<'a, DB, Record, Indexes>
+pub struct Collection<DB, Record, Indexes>
 where
     DB: MultiStore,
     // The stored record implementing the Entity contract
-    Record: Entity + 'a,
-    Indexes: IndexRegistry<'a, Record>,
+    Record: Entity,
+    Indexes: IndexRegistry<Record>,
 {
     name: &'static str,
     db: DB,
 
-    _marker: PhantomData<(&'a Record, Indexes)>,
+    _marker: PhantomData<(Record, Indexes)>,
 }
 
-impl<'a, DB, Record, Indexes> Collection<'a, DB, Record, Indexes>
+impl<DB, Record, Indexes> Collection<DB, Record, Indexes>
 where
     DB: MultiStore,
-    Record: Entity + 'a,
-    Indexes: IndexRegistry<'a, Record>,
+    Record: Entity,
+    Indexes: IndexRegistry<Record>,
 {
     const MAIN_STORE: &'static str = "__main";
 
@@ -78,13 +78,13 @@ where
         Ok(())
     }
 
-    pub fn index<Idx, P>(
+    pub fn index<'a, Idx, P>(
         &self,
         _idx: Idx,
     ) -> Result<IndexScan<'a, DB::ReadHandle, Record, Idx>, Error>
     where
-        Idx: Index<'a, Record>,
-        Idx::Kind: IndexKind<Idx::Key, Record::Key<'a>>,
+        Idx: Index<Record>,
+        Idx::Kind<'a>: IndexKind<Idx::Key<'a>, Record::Key<'a>>,
         Indexes: ContainsIndex<Idx, P>,
     {
         Ok(IndexScan::new(self.name, self.db.read(self.name)?))
