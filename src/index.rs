@@ -1,13 +1,17 @@
+use crate::entity::Entity;
 use crate::error::Error;
-use crate::key::{AppendKey, HasKey, Key};
+use crate::key::{AppendKey, Key};
 use crate::store::{MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
 
 /// Index allows to maintain a separate query efficient stores on non primary-key, it is made for
 /// a specific Entity and specified by a Key to index extracted from an Entity, and an IndexKind
 /// (i.e. Unique or Multi).
-pub trait Index<PrimaryKey: Key, Record: HasKey<PrimaryKey>> {
+pub trait Index<'a, Record: Entity>
+where
+    Record: 'a,
+{
     type Key: Key;
-    type Kind: IndexKind<Self::Key, PrimaryKey>;
+    type Kind: IndexKind<Self::Key, Record::Key<'a>>;
 
     const NAME: &'static str;
 
@@ -15,51 +19,54 @@ pub trait Index<PrimaryKey: Key, Record: HasKey<PrimaryKey>> {
 
     fn set<DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        old: Option<(&PrimaryKey, &Record)>,
-        new: (&PrimaryKey, &Record),
+        old: Option<(&Record::Key<'a>, &Record)>,
+        new: (&Record::Key<'a>, &Record),
     ) -> Result<(), Error> {
-        let new_skey = Self::Kind::store_key(&Self::key(new.1), new.0).encode();
-        let old_skey =
-            old.map(|(pk, entity)| Self::Kind::store_key(&Self::key(entity), pk).encode());
+        let new_ikey = Self::key(new.1);
+        let new_skey = Self::Kind::store_key(&new_ikey, new.0);
 
-        match old_skey {
-            // Noop when the index key didn't change
-            // todo: we can avoid allocations before by comparing only non encoded index keys here
-            Some(old_skey) if old_skey == new_skey => return Ok(()),
-            _ => {}
+        let mut store: Option<DB::Store> = None;
+        match old {
+            Some((pk, entity)) => {
+                let old_ikey = Self::key(entity);
+                let old_skey = Self::Kind::store_key(&old_ikey, pk);
+
+                if old_skey == new_skey {
+                    return Ok(());
+                }
+
+                store.get_or_insert(db.open_store(Self::NAME)?)
+                    .remove(old_skey.encode())?;
+            },
+            None => {}
         };
 
-        let mut store = db.open_store(Self::NAME)?;
+        let mut store = store.unwrap_or(db.open_store(Self::NAME)?);
 
-        if let Some(skey) = old_skey {
-            store.remove(&skey)?;
-        }
-
-        if store.get(&new_skey)?.is_some() {
+        let skey = new_skey.encode();
+        if store.get(&skey)?.is_some() {
             Err(Error::AlreadyExists(Self::NAME.to_string()))?
         }
 
-        // todo: we can avoid encoding the pk as value for multi indexes, as already present in the key.
-        // todo: we can add a IndexKind::store_value(&PK) -> &[u8], returning the pk for unique impl and empty for multi.
-        store.set(&new_skey, &new.0.encode())?;
+        store.set(skey, &new.0.encode())?;
 
         Ok(())
     }
 
     fn remove<DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        target: (&PrimaryKey, &Record),
+        target: (&Record::Key<'a>, &Record),
     ) -> Result<(), Error> {
         let mut store = db.open_store(Self::NAME)?;
         let ikey = Self::key(target.1);
-        let skey = Self::Kind::store_key(&ikey, target.0).encode();
+        let skey = Self::Kind::store_key(&ikey, target.0);
 
-        store.remove(&skey).map_err(Error::Backend)
+        store.remove(skey.encode()).map_err(Error::Backend)
     }
 }
 
 pub type StoreKey<'a, I, PK, T> =
-    <<I as Index<PK, T>>::Kind as IndexKind<<I as Index<PK, T>>::Key, PK>>::StoreKey<'a>;
+    <<I as Index<'a, T>>::Kind as IndexKind<<I as Index<'a, T>>::Key, PK>>::StoreKey<'a>;
 
 /// IndexKind helps to specify an index behavior by expressing the actual stored key in the index
 /// based on the index key and the underlying entity primary key.

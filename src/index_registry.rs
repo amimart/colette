@@ -1,8 +1,8 @@
 use crate::error::Error;
 use crate::index::{Index, IndexKind};
-use crate::key::{HasKey, Key};
 use crate::store::MultiStoreWriteHandle;
 use std::marker::PhantomData;
+use crate::entity::Entity;
 
 // HList helper types:
 pub struct Nil;
@@ -11,28 +11,34 @@ pub struct There<Tail>(PhantomData<Tail>);
 pub struct Cons<Head, Tail>(PhantomData<(Head, Tail)>);
 
 /// IndexRegistry is a recursive HList trait to allow defining multiple indexes as generic types.
-pub trait IndexRegistry<PK: Key, T: HasKey<PK>> {
+pub trait IndexRegistry<'a, T: Entity>
+where
+    T: 'a,
+{
     fn set<DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        old: Option<(&PK, &T)>,
-        new: (&PK, &T),
+        old: Option<(&T::Key<'a>, &T)>,
+        new: (&T::Key<'a>, &T),
     ) -> Result<(), Error>;
 
-    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PK, &T)) -> Result<(), Error>;
+    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&T::Key<'a>, &T)) -> Result<(), Error>;
 
     fn has_index(name: &str) -> bool;
 }
 
-impl<PK: Key, T: HasKey<PK>> IndexRegistry<PK, T> for Nil {
+impl<'a, T> IndexRegistry<'a, T> for Nil
+where
+    T: Entity + 'a,
+{
     fn set<DB: MultiStoreWriteHandle>(
         _db: &mut DB,
-        _old: Option<(&PK, &T)>,
-        _new: (&PK, &T),
+        _old: Option<(&T::Key<'a>, &T)>,
+        _new: (&T::Key<'a>, &T),
     ) -> Result<(), Error> {
         Ok(())
     }
 
-    fn remove<DB: MultiStoreWriteHandle>(_db: &mut DB, _target: (&PK, &T)) -> Result<(), Error> {
+    fn remove<DB: MultiStoreWriteHandle>(_db: &mut DB, _target: (&T::Key<'a>, &T)) -> Result<(), Error> {
         Ok(())
     }
 
@@ -41,24 +47,23 @@ impl<PK: Key, T: HasKey<PK>> IndexRegistry<PK, T> for Nil {
     }
 }
 
-impl<PK, T, Head, Tail> IndexRegistry<PK, T> for Cons<Head, Tail>
+impl<'a, T, Head, Tail> IndexRegistry<'a, T> for Cons<Head, Tail>
 where
-    PK: Key,
-    T: HasKey<PK>,
-    Head: Index<PK, T>,
-    Head::Kind: IndexKind<Head::Key, PK>,
-    Tail: IndexRegistry<PK, T>,
+    T: Entity + 'a,
+    Head: Index<'a, T>,
+    Head::Kind: IndexKind<Head::Key, T::Key<'a>>,
+    Tail: IndexRegistry<'a, T>,
 {
     fn set<DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        old: Option<(&PK, &T)>,
-        new: (&PK, &T),
+        old: Option<(&T::Key<'a>, &T)>,
+        new: (&T::Key<'a>, &T),
     ) -> Result<(), Error> {
         Head::set(db, old, new)?;
         Tail::set(db, old, new)
     }
 
-    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&PK, &T)) -> Result<(), Error> {
+    fn remove<DB: MultiStoreWriteHandle>(db: &mut DB, target: (&T::Key<'a>, &T)) -> Result<(), Error> {
         Head::remove(db, target)?;
         Tail::remove(db, target)
     }
@@ -81,9 +86,8 @@ impl<I, Head, Tail, Proof> ContainsIndex<I, There<Proof>> for Cons<Head, Tail> w
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::{BackendError, Error};
+    use crate::error::{BackendError, CodecError, Error};
     use crate::index::Unique;
-    use crate::key::HasKey;
     use crate::scan::{Direction, ScanRange};
     use crate::store::{MultiStoreWriteHandle, ReadKVStore, ReadWriteKVStore, WriteKVStore};
 
@@ -92,9 +96,19 @@ mod tests {
     #[derive(Clone)]
     struct Record(u32);
 
-    impl HasKey<u32> for Record {
+    impl Entity for Record {
+        type Key<'a> = u32;
+
         fn key(&self) -> u32 {
             self.0
+        }
+
+        fn to_bytes(&self) -> Result<Vec<u8>, CodecError> {
+            todo!()
+        }
+
+        fn from_bytes(bytes: &[u8]) -> Result<Self, CodecError> {
+            todo!()
         }
     }
 
@@ -108,7 +122,7 @@ mod tests {
 
     macro_rules! spy_index {
         ($ty:ty, $name:literal) => {
-            impl Index<u32, Record> for $ty {
+            impl<'a> Index<'a, Record> for $ty {
                 type Key = u32;
                 type Kind = Unique;
                 const NAME: &'static str = $name;
@@ -137,7 +151,7 @@ mod tests {
     spy_index!(IndexA, "index_a");
     spy_index!(IndexB, "index_b");
 
-    impl Index<u32, Record> for FailIndex {
+    impl<'a> Index<'a, Record> for FailIndex {
         type Key = u32;
         type Kind = Unique;
         const NAME: &'static str = "fail";
@@ -166,7 +180,7 @@ mod tests {
 
     impl ReadKVStore for NoopStore {
         type Iter = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>;
-        fn get(&self, _: &[u8]) -> Result<Option<Vec<u8>>, BackendError> {
+        fn get(&self, _: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError> {
             Ok(None)
         }
         fn scan(&self, _: ScanRange, _: Direction) -> Result<Self::Iter, BackendError> {
@@ -174,10 +188,10 @@ mod tests {
         }
     }
     impl WriteKVStore for NoopStore {
-        fn set(&mut self, _: &[u8], _: &[u8]) -> Result<(), BackendError> {
+        fn set(&mut self, _: impl AsRef<[u8]>, _: impl AsRef<[u8]>) -> Result<(), BackendError> {
             Ok(())
         }
-        fn remove(&mut self, _: &[u8]) -> Result<(), BackendError> {
+        fn remove(&mut self, _: impl AsRef<[u8]>) -> Result<(), BackendError> {
             Ok(())
         }
     }
@@ -211,33 +225,33 @@ mod tests {
     fn has_index() {
         let cases: &[(fn(&str) -> bool, &str, bool)] = &[
             (
-                <Nil as IndexRegistry<u32, Record>>::has_index,
+                <Nil as IndexRegistry<Record>>::has_index,
                 "index_a",
                 false,
             ),
-            (<Nil as IndexRegistry<u32, Record>>::has_index, "", false),
+            (<Nil as IndexRegistry<Record>>::has_index, "", false),
             (
-                <Cons<IndexA, Nil> as IndexRegistry<u32, Record>>::has_index,
+                <Cons<IndexA, Nil> as IndexRegistry<Record>>::has_index,
                 "index_a",
                 true,
             ),
             (
-                <Cons<IndexA, Nil> as IndexRegistry<u32, Record>>::has_index,
+                <Cons<IndexA, Nil> as IndexRegistry<Record>>::has_index,
                 "index_b",
                 false,
             ),
             (
-                <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::has_index,
+                <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::has_index,
                 "index_a",
                 true,
             ),
             (
-                <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::has_index,
+                <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::has_index,
                 "index_b",
                 true,
             ),
             (
-                <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::has_index,
+                <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::has_index,
                 "nonexistent",
                 false,
             ),
@@ -261,13 +275,13 @@ mod tests {
 
         let cases: &[(&dyn Fn(&mut Spy) -> Result<(), Error>, &[&str], bool)] = &[
             (
-                &|s| <Nil as IndexRegistry<u32, Record>>::set(s, None, (&pk, &record)),
+                &|s| <Nil as IndexRegistry<Record>>::set(s, None, (&pk, &record)),
                 &[],
                 false,
             ),
             (
                 &|s| {
-                    <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::set(
+                    <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::set(
                         s,
                         None,
                         (&pk, &record),
@@ -278,7 +292,7 @@ mod tests {
             ),
             (
                 &|s| {
-                    <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<u32, Record>>::set(
+                    <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<Record>>::set(
                         s,
                         None,
                         (&pk, &record),
@@ -306,13 +320,13 @@ mod tests {
 
         let cases: &[(&dyn Fn(&mut Spy) -> Result<(), Error>, &[&str], bool)] = &[
             (
-                &|s| <Nil as IndexRegistry<u32, Record>>::remove(s, (&pk, &record)),
+                &|s| <Nil as IndexRegistry<Record>>::remove(s, (&pk, &record)),
                 &[],
                 false,
             ),
             (
                 &|s| {
-                    <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<u32, Record>>::remove(
+                    <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::remove(
                         s,
                         (&pk, &record),
                     )
@@ -322,7 +336,7 @@ mod tests {
             ),
             (
                 &|s| {
-                    <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<u32, Record>>::remove(
+                    <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<Record>>::remove(
                         s,
                         (&pk, &record),
                     )
