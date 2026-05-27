@@ -42,11 +42,11 @@ pub enum ScanRange {
 
 pub struct IndexScan<'a, ReadHandle, Record, Idx>
 where
+    Self: 'a,
     ReadHandle: MultiStoreReadHandle,
     Record: Entity,
     Idx: Index<Record>,
-    Idx::Kind<'a>: IndexKind<Idx::Key<'a>, Record::Key<'a>>,
-    Self: 'a,
+    for<'b> Idx::Kind<'b>: IndexKind<Idx::Key<'b>, Record::Key<'b>>,
 {
     collection_name: &'static str,
     read_handle: ReadHandle,
@@ -62,7 +62,7 @@ where
     ReadHandle: MultiStoreReadHandle,
     Record: Entity,
     Idx: Index<Record>,
-    Idx::Kind<'a>: IndexKind<Idx::Key<'a>, Record::Key<'a>>,
+    for<'b> Idx::Kind<'b>: IndexKind<Idx::Key<'b>, Record::Key<'b>>,
 {
     pub fn new(collection_name: &'static str, read_handle: ReadHandle) -> Self {
         Self {
@@ -122,9 +122,9 @@ where
     ReadHandle: MultiStoreReadHandle,
     Record: Entity,
     Idx: Index<Record>,
-    Idx::Kind<'a>: IndexKind<Idx::Key<'a>, Record::Key<'a>>,
     KeyPrefix: Prefix,
     StoreKey<'a, Idx, Record::Key<'a>, Record>: Key + Prefixable<KeyPrefix>,
+    for<'b> Idx::Kind<'b>: IndexKind<Idx::Key<'b>, Record::Key<'b>>,
 {
     fn prefix(mut self, prefix: KeyPrefix) -> Self {
         self.range = ScanRange::Prefix(prefix.encode_prefix());
