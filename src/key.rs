@@ -808,4 +808,92 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn encode_array_u8() {
+        // [u8; S] encodes as its raw bytes — no framing, no escaping
+        let cases: &[([u8; 3], &[u8])] = &[
+            ([0x00, 0x00, 0x00], &[0x00, 0x00, 0x00]),
+            ([0x01, 0x02, 0x03], &[0x01, 0x02, 0x03]),
+            ([0x00, 0xff, 0x00], &[0x00, 0xff, 0x00]),
+        ];
+        for &(value, expected) in cases {
+            assert_eq!(value.encode().as_ref(), expected, "[u8;3]::encode({value:02x?})");
+        }
+    }
+
+    #[test]
+    fn decode_part_array_u8() {
+        let cases: &[(&[u8], [u8; 3], &[u8])] = &[
+            (&[0x01, 0x02, 0x03], [0x01, 0x02, 0x03], &[]),
+            (&[0x00, 0xff, 0x00], [0x00, 0xff, 0x00], &[]),
+            // trailing bytes become the remainder
+            (&[0x01, 0x02, 0x03, 0xde, 0xad], [0x01, 0x02, 0x03], &[0xde, 0xad]),
+        ];
+        for &(bytes, expected, remainder) in cases {
+            let (value, rest) = <[u8; 3]>::decode_part(bytes);
+            assert_eq!(value, expected, "[u8;3]::decode_part({bytes:02x?}) value");
+            assert_eq!(rest, remainder, "[u8;3]::decode_part({bytes:02x?}) remainder");
+        }
+
+        // panics when fewer bytes than S are available
+        let panic_cases: &[&[u8]] = &[
+            &[],          // empty
+            &[0x01],      // 1 byte, needs 3
+            &[0x01, 0x02], // 2 bytes, needs 3
+        ];
+        for &input in panic_cases {
+            assert!(
+                std::panic::catch_unwind(|| <[u8; 3]>::decode_part(input)).is_err(),
+                "expected panic for input {input:02x?}"
+            );
+        }
+    }
+
+    #[test]
+    fn encode_vec_u8() {
+        // Vec<u8> uses null-escaping: 0x00 → [0x00, 0xff], terminated by [0x00, 0x00]
+        let cases: &[(&[u8], &[u8])] = &[
+            (&[], &[0x00, 0x00]),
+            (&[0x01, 0x02], &[0x01, 0x02, 0x00, 0x00]),
+            (&[0x00], &[0x00, 0xff, 0x00, 0x00]),
+            (&[0x00, 0x01, 0x00], &[0x00, 0xff, 0x01, 0x00, 0xff, 0x00, 0x00]),
+        ];
+        for &(input, expected) in cases {
+            assert_eq!(
+                input.to_vec().encode().as_slice(),
+                expected,
+                "Vec<u8>::encode({input:02x?})"
+            );
+        }
+    }
+
+    #[test]
+    fn decode_part_vec_u8() {
+        let cases: &[(&[u8], &[u8], &[u8])] = &[
+            (&[0x00, 0x00], &[], &[]),
+            (&[0x01, 0x02, 0x00, 0x00], &[0x01, 0x02], &[]),
+            (&[0x00, 0xff, 0x00, 0x00], &[0x00], &[]),
+            (&[0x00, 0xff, 0x01, 0x00, 0xff, 0x00, 0x00], &[0x00, 0x01, 0x00], &[]),
+            // bytes after the terminator become the remainder
+            (&[0x01, 0x00, 0x00, 0xde, 0xad], &[0x01], &[0xde, 0xad]),
+        ];
+        for &(bytes, expected, remainder) in cases {
+            let (value, rest) = Vec::<u8>::decode_part(bytes);
+            assert_eq!(value, expected, "Vec<u8>::decode_part({bytes:02x?}) value");
+            assert_eq!(rest, remainder, "Vec<u8>::decode_part({bytes:02x?}) remainder");
+        }
+
+        let panic_cases: &[&[u8]] = &[
+            &[],           // empty — no terminator
+            &[0x01, 0x02], // missing terminator
+            &[0x00, 0x01], // invalid escape sequence
+        ];
+        for &input in panic_cases {
+            assert!(
+                std::panic::catch_unwind(|| Vec::<u8>::decode_part(input)).is_err(),
+                "expected panic for input {input:02x?}"
+            );
+        }
+    }
 }
