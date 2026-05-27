@@ -44,7 +44,7 @@ pub trait Key: Eq {
 
     type OwnedKey: Key + Sized;
 
-    type EncodedRef<'a>: AsRef<[u8]> + 'a
+    type EncodedBytes<'a>: AsRef<[u8]> + 'a
     where
         Self: 'a;
 
@@ -55,16 +55,29 @@ pub trait Key: Eq {
     ///
     /// Variable-size keys should use Colette encoding helper (i.e. `encode_unsized_key_bytes`) to
     /// ensure their encoded representation remains safe for composite keys and prefix scans.
-    fn encode(&self) -> Self::EncodedRef<'_>;
+    fn encode(&self) -> Self::EncodedBytes<'_>;
 
-    /// Decodes a key from its encoded representation.
+    /// Decodes a key from its encoded representation and returns the unread bytes.
     ///
-    /// Implementations should return an error if the input is malformed or
-    /// incomplete.
+    /// Panics if the input is malformed or incomplete.
     ///
     /// Variable-size keys should use Colette decoding helper (i.e. `decode_unsized_key_bytes`) to
     /// decode escaped and framed key bytes correctly.
-    fn decode(bytes: &[u8]) -> Self::OwnedKey;
+    fn decode_part(bytes: &[u8]) -> (Self::OwnedKey, &[u8]);
+
+    /// Decodes a key from its encoded representation.
+    ///
+    /// Panics if the input is malformed, incomplete, or more than complete.
+    ///
+    /// Variable-size keys should use Colette decoding helper (i.e. `decode_unsized_key_bytes`) to
+    /// decode escaped and framed key bytes correctly.
+    fn decode(bytes: &[u8]) -> Self::OwnedKey {
+        let (key, rest) = Self::decode_part(bytes);
+        if !rest.is_empty() {
+            panic!("bytes contains more data than expected")
+        }
+        key
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,16 +149,16 @@ impl<K: Key> Key for &K
 
     type OwnedKey = K::OwnedKey;
 
-    type EncodedRef<'a> = K::EncodedRef<'a>
+    type EncodedBytes<'a> = K::EncodedBytes<'a>
     where
         Self: 'a;
 
-    fn encode(&self) -> Self::EncodedRef<'_> {
+    fn encode(&self) -> Self::EncodedBytes<'_> {
         (*self).encode()
     }
 
-    fn decode(bytes: &[u8]) -> Self::OwnedKey {
-        K::decode(bytes)
+    fn decode_part(bytes: &[u8]) -> (Self::OwnedKey, &[u8]) {
+        K::decode_part(bytes)
     }
 }
 
@@ -154,16 +167,17 @@ impl<K: Key> Key for (K,) {
 
     type OwnedKey = (K::OwnedKey,);
 
-    type EncodedRef<'a> = K::EncodedRef<'a>
+    type EncodedBytes<'a> = K::EncodedBytes<'a>
     where
         Self: 'a;
 
-    fn encode(&self) -> Self::EncodedRef<'_> {
+    fn encode(&self) -> Self::EncodedBytes<'_> {
         self.0.encode()
     }
 
-    fn decode(bytes: &[u8]) -> Self::OwnedKey {
-        (K::decode(bytes),)
+    fn decode_part(bytes: &[u8]) -> (Self::OwnedKey, &[u8]) {
+        let (k, r) = K::decode_part(bytes);
+        ((k,), r)
     }
 }
 
