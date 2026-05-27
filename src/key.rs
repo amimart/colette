@@ -724,4 +724,42 @@ mod tests {
         assert_eq!(value, i128::MIN);
         assert_eq!(rest, &[0xbe, 0xef]);
     }
+
+    #[test]
+    fn encode_bool() {
+        let cases: &[(bool, &[u8])] = &[
+            (false, &[0x00]),
+            (true, &[0x01]),
+        ];
+        for &(value, expected) in cases {
+            assert_eq!(value.encode().as_ref(), expected, "bool::encode({value})");
+        }
+    }
+
+    #[test]
+    fn decode_part_bool() {
+        let cases: &[(&[u8], bool, &[u8])] = &[
+            (&[0x00], false, &[]),
+            (&[0x01], true, &[]),
+            (&[0x00, 0xde, 0xad], false, &[0xde, 0xad]),
+            (&[0x01, 0xca, 0xfe], true, &[0xca, 0xfe]),
+        ];
+        for &(bytes, expected, remainder) in cases {
+            let (value, rest) = bool::decode_part(bytes);
+            assert_eq!(value, expected, "bool::decode_part({bytes:02x?}) value");
+            assert_eq!(rest, remainder, "bool::decode_part({bytes:02x?}) remainder");
+        }
+
+        let panic_cases: &[&[u8]] = &[
+            &[],        // empty input
+            &[0x02],    // invalid discriminant
+            &[0xff],    // invalid discriminant
+        ];
+        for &input in panic_cases {
+            assert!(
+                std::panic::catch_unwind(|| bool::decode_part(input)).is_err(),
+                "expected panic for input {input:02x?}"
+            );
+        }
+    }
 }
