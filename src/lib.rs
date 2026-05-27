@@ -9,3 +9,4 @@ pub mod macros;
 pub mod prefix;
 pub mod scan;
 pub mod store;
+mod inline_vec;
