@@ -36,14 +36,6 @@ where
         }
     }
 
-    pub fn builder<K, T>(name: &'static str, db: DB) -> CollectionBuilder<'static, DB, T, Nil>
-    where
-        K: Key,
-        T: Entity,
-    {
-        CollectionBuilder::new(name, db)
-    }
-
     pub fn insert(&self, value: Record) -> Result<(), Error> {
         let pk = value.key();
         let enc_pk = pk.encode();
@@ -91,35 +83,27 @@ where
     }
 }
 
-pub struct CollectionBuilder<'a, DB, Record, Indexes>
+pub struct CollectionBuilder<DB, Record, Indexes>
 where
     DB: MultiStore,
-    Record: Entity + 'a,
-    Indexes: IndexRegistry<'a, Record>,
+    Record: Entity,
+    Indexes: IndexRegistry<Record>,
 {
     name: &'static str,
     db: DB,
 
-    _marker: PhantomData<(&'a Record, Indexes)>,
+    _marker: PhantomData<(Record, Indexes)>,
 }
 
-impl<'a, DB, Record, Indexes> CollectionBuilder<'a, DB, Record, Indexes>
+impl<DB, Record, Indexes> CollectionBuilder<DB, Record, Indexes>
 where
     DB: MultiStore,
-    Record: Entity + 'a,
-    Indexes: IndexRegistry<'a, Record>,
+    Record: Entity,
+    Indexes: IndexRegistry<Record>,
 {
-    pub fn new(name: &'static str, db: DB) -> Self {
-        Self {
-            name,
-            db,
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn with_index<Idx>(self) -> CollectionBuilder<'a, DB, Record, Cons<Idx, Indexes>>
+    pub fn with_index<Idx>(self) -> CollectionBuilder<DB, Record, Cons<Idx, Indexes>>
     where
-        Idx: Index<'a, Record>,
+        Idx: Index<Record>,
     {
         assert!(
             !Indexes::has_index(Idx::NAME),
@@ -127,10 +111,26 @@ where
             Idx::NAME,
             self.name
         );
-        CollectionBuilder::new(self.name, self.db)
+        CollectionBuilder {
+            name: self.name,
+            db: self.db,
+            _marker: PhantomData,
+        }
     }
 
-    pub fn build(self) -> Collection<'a, DB, Record, Indexes> {
+    pub fn build(self) -> Collection<DB, Record, Indexes> {
         Collection::new(self.name, self.db)
+    }
+}
+
+pub fn collection<T, DB>(name: &'static str, db: DB) -> CollectionBuilder<DB, T, Nil>
+where
+    T: Entity,
+    DB: MultiStore,
+{
+    CollectionBuilder {
+        name,
+        db,
+        _marker: PhantomData,
     }
 }
