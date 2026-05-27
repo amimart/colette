@@ -27,15 +27,15 @@ pub trait MultiStoreWriteHandle {
 pub trait ReadWriteKVStore: ReadKVStore + WriteKVStore {}
 
 pub trait WriteKVStore {
-    fn set(&mut self, key: &[u8], value: &[u8]) -> Result<(), BackendError>;
+    fn set(&mut self, key: impl AsRef<[u8]>, value: impl AsRef<[u8]>) -> Result<(), BackendError>;
 
-    fn remove(&mut self, key: &[u8]) -> Result<(), BackendError>;
+    fn remove(&mut self, key: impl AsRef<[u8]>) -> Result<(), BackendError>;
 }
 
 pub trait ReadKVStore {
     type Iter: Iterator<Item = Result<(Vec<u8>, Vec<u8>), BackendError>>;
 
-    fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>, BackendError>;
+    fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError>;
 
     fn scan(&self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError>;
 }
