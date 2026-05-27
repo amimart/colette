@@ -113,7 +113,7 @@ mod tests {
             todo!()
         }
 
-        fn from_bytes(bytes: &[u8]) -> Result<Self, CodecError> {
+        fn from_bytes(_bytes: &[u8]) -> Result<Self, CodecError> {
             todo!()
         }
     }

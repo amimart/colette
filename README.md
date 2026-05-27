@@ -107,7 +107,7 @@ impl Entity for Download {
 ```rust
 pub struct UniqueName;
 impl Index<Download> for UniqueName {
-    type Key<'a> = &'a str; // key extraction is zero-copy, encoding allocates
+    type Key<'a> = &'a str; // key extraction is zero-copy, encoding may be zero-alloc
     type Kind<'a> = Unique;
     const NAME: &'static str = "name";
 
@@ -129,7 +129,7 @@ impl Index<Download> for ByStatus {
 
 pub struct ByStatusAndSize;
 impl Index<Download> for ByStatusAndSize {
-    type Key<'a> = (Status, u64); // key extraction is copy, encoding allocates
+    type Key<'a> = (Status, u64); // key extraction is copy, encoding may be zero-alloc
     type Kind<'a> = Multi;
     const NAME: &'static str = "status_size";
 

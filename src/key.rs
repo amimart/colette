@@ -1,3 +1,4 @@
+use crate::inline_vec::IVec;
 use crate::{impl_signed_integer_key, impl_unsigned_integer_key};
 
 /// A value that can be encoded as an ordered key for Colette stores and indexes.
@@ -95,7 +96,7 @@ pub enum KeySize {
 ///
 /// This encoding ensures that variable-size keys remain safe to concatenate
 /// inside composite keys while preserving lexicographic ordering.
-pub fn encode_unsized_key_bytes(bytes: &[u8], out: &mut Vec<u8>) {
+pub fn encode_unsized_key_bytes(bytes: &[u8], out: &mut IVec) {
     for &b in bytes {
         match b {
             0x00 => out.extend_from_slice(&[0x00, 0xff]),
@@ -225,7 +226,7 @@ impl Key for String {
     type OwnedKey = Self;
 
     type EncodedBytes<'a>
-        = Vec<u8>
+        = IVec
     where
         Self: 'a;
 
@@ -246,12 +247,12 @@ impl Key for &str {
     type OwnedKey = String;
 
     type EncodedBytes<'a>
-        = Vec<u8>
+        = IVec
     where
         Self: 'a;
 
     fn encode(&self) -> Self::EncodedBytes<'_> {
-        let mut out = Vec::with_capacity(self.len() + 1);
+        let mut out = IVec::with_capacity(self.len() + 1);
         out.extend_from_slice(self.as_bytes());
         out.push(0xff);
         out
@@ -297,12 +298,12 @@ impl Key for Vec<u8> {
     type OwnedKey = Self;
 
     type EncodedBytes<'a>
-        = Vec<u8>
+        = IVec
     where
         Self: 'a;
 
     fn encode(&self) -> Self::EncodedBytes<'_> {
-        let mut out = Vec::with_capacity(self.len() + 2);
+        let mut out = IVec::with_capacity(self.len() + 2);
         encode_unsized_key_bytes(self, &mut out);
         out
     }
@@ -325,20 +326,20 @@ where
     type OwnedKey = (A::OwnedKey, B::OwnedKey);
 
     type EncodedBytes<'a>
-        = Vec<u8>
+        = IVec
     where
         Self: 'a;
 
     fn encode(&self) -> Self::EncodedBytes<'_> {
         match Self::SIZE {
             KeySize::Fixed(s) => {
-                let mut out = Vec::with_capacity(s);
+                let mut out = IVec::with_capacity(s);
                 out.extend_from_slice(self.0.encode().as_ref());
                 out.extend_from_slice(self.1.encode().as_ref());
                 out
             }
             KeySize::Variable => {
-                let mut out = self.0.encode().as_ref().to_vec();
+                let mut out = IVec::from(self.0.encode().as_ref());
                 out.extend_from_slice(self.1.encode().as_ref());
                 out
             }
@@ -368,21 +369,21 @@ where
     type OwnedKey = (A::OwnedKey, B::OwnedKey, C::OwnedKey);
 
     type EncodedBytes<'a>
-        = Vec<u8>
+        = IVec
     where
         Self: 'a;
 
     fn encode(&self) -> Self::EncodedBytes<'_> {
         match Self::SIZE {
             KeySize::Fixed(s) => {
-                let mut out = Vec::with_capacity(s);
+                let mut out = IVec::with_capacity(s);
                 out.extend_from_slice(self.0.encode().as_ref());
                 out.extend_from_slice(self.1.encode().as_ref());
                 out.extend_from_slice(self.2.encode().as_ref());
                 out
             }
             KeySize::Variable => {
-                let mut out = self.0.encode().as_ref().to_vec();
+                let mut out = IVec::from(self.0.encode().as_ref());
                 out.extend_from_slice(self.1.encode().as_ref());
                 out.extend_from_slice(self.2.encode().as_ref());
                 out
@@ -415,14 +416,14 @@ where
     type OwnedKey = (A::OwnedKey, B::OwnedKey, C::OwnedKey, D::OwnedKey);
 
     type EncodedBytes<'a>
-        = Vec<u8>
+        = IVec
     where
         Self: 'a;
 
     fn encode(&self) -> Self::EncodedBytes<'_> {
         match Self::SIZE {
             KeySize::Fixed(s) => {
-                let mut out = Vec::with_capacity(s);
+                let mut out = IVec::with_capacity(s);
                 out.extend_from_slice(self.0.encode().as_ref());
                 out.extend_from_slice(self.1.encode().as_ref());
                 out.extend_from_slice(self.2.encode().as_ref());
@@ -430,7 +431,7 @@ where
                 out
             }
             KeySize::Variable => {
-                let mut out = self.0.encode().as_ref().to_vec();
+                let mut out = IVec::from(self.0.encode().as_ref());
                 out.extend_from_slice(self.1.encode().as_ref());
                 out.extend_from_slice(self.2.encode().as_ref());
                 out.extend_from_slice(self.3.encode().as_ref());
@@ -492,6 +493,7 @@ impl<A: Key, B: Key, C: Key, PK: Key> AppendKey<PK> for (A, B, C) {
 #[cfg(test)]
 mod tests {
     use super::Key;
+    use crate::inline_vec::IVec;
 
     #[test]
     fn decode() {
@@ -553,9 +555,9 @@ mod tests {
         ];
 
         for (input, expected) in cases {
-            let mut out = Vec::new();
+            let mut out = IVec::new();
             super::encode_unsized_key_bytes(input, &mut out);
-            assert_eq!(out, *expected, "encode({input:02x?})");
+            assert_eq!(out.as_ref(), *expected, "encode({input:02x?})");
         }
     }
 
@@ -615,7 +617,7 @@ mod tests {
         ];
 
         for &input in cases {
-            let mut encoded = Vec::new();
+            let mut encoded = IVec::new();
             super::encode_unsized_key_bytes(input, &mut encoded);
             let (decoded, remainder) = super::decode_unsized_key_bytes(&encoded);
             assert_eq!(decoded, input, "round-trip({input:02x?})");
