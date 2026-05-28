@@ -5,7 +5,7 @@ use crate::index::{Index, IndexKind};
 use crate::index_registry::{Cons, ContainsIndex, IndexRegistry, Nil};
 use crate::key::Key;
 use crate::scan::IndexScan;
-use crate::store::{MultiStore, MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
+use crate::store::{MultiStore, MultiStoreReadHandle, MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
 use std::marker::PhantomData;
 
 pub struct Collection<DB, Record, Indexes>
@@ -58,11 +58,19 @@ where
         tx.commit().map_err(Error::Backend)
     }
 
-    pub fn get<'a>(&self, _key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>) -> Result<Option<Record>, Error>
+    pub fn get<'a>(&self, key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>) -> Result<Option<Record>, Error>
     where
         Record: 'a,
     {
-        Ok(None)
+        self.db.read(self.name)?
+            .open_store(Self::MAIN_STORE)?
+            .get(key.borrow().encode())
+            .map_err(Error::Backend)
+            .and_then(|res| res.map(|bytes|
+                Record::from_bytes(&bytes)
+                    .map_err(Error::Codec))
+                    .transpose()
+            )
     }
 
     pub fn update(&self, _value: impl Borrow<Record>) -> Result<(), Error> {
