@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use crate::entity::Entity;
 use crate::error::Error;
 use crate::index::{Index, IndexKind};
@@ -36,7 +37,8 @@ where
         }
     }
 
-    pub fn insert(&self, value: Record) -> Result<(), Error> {
+    pub fn insert(&self, value: impl Borrow<Record>) -> Result<(), Error> {
+        let value = value.borrow();
         let pk = value.key();
         let enc_pk = pk.encode();
         let mut tx = self.db.write(self.name)?;
@@ -56,19 +58,25 @@ where
         tx.commit().map_err(Error::Backend)
     }
 
-    pub fn get(&self, _key: Record::Key<'_>) -> Result<Option<Record>, Error> {
+    pub fn get<'a>(&self, _key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>) -> Result<Option<Record>, Error>
+    where
+        Record: 'a,
+    {
         Ok(None)
     }
 
-    pub fn update(&self, _value: Record) -> Result<(), Error> {
+    pub fn update(&self, _value: impl Borrow<Record>) -> Result<(), Error> {
         Ok(())
     }
 
-    pub fn save(&self, _value: Record) -> Result<(), Error> {
+    pub fn save(&self, _value: impl Borrow<Record>) -> Result<(), Error> {
         Ok(())
     }
 
-    pub fn remove(&self, _key: Record::Key<'_>) -> Result<(), Error> {
+    pub fn remove<'a>(&self, _key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>) -> Result<(), Error>
+    where
+        Record: 'a,
+    {
         Ok(())
     }
 
