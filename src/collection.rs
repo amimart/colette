@@ -41,19 +41,17 @@ where
         let value = value.borrow();
         let pk = value.key();
         let enc_pk = pk.encode();
+
         let mut tx = self.db.write(self.name)?;
+        let mut store = tx.open_store(Self::MAIN_STORE)?;
 
-        {
-            let mut store = tx.open_store(Self::MAIN_STORE)?;
-
-            if store.get(&enc_pk)?.is_some() {
-                Err(Error::AlreadyExists(self.name.to_string()))?
-            }
-
-            store.set(&enc_pk, &value.to_bytes()?)?;
-
-            Indexes::update(&mut tx, None, (&pk, &value))?;
+        if store.get(&enc_pk)?.is_some() {
+            Err(Error::AlreadyExists(self.name.to_string()))?
         }
+
+        store.set(&enc_pk, &value.to_bytes()?)?;
+
+        Indexes::update(&mut tx, None, (&pk, &value))?;
 
         tx.commit().map_err(Error::Backend)
     }
@@ -81,11 +79,31 @@ where
         Ok(())
     }
 
-    pub fn remove<'a>(&self, _key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>) -> Result<(), Error>
+    pub fn remove<'a>(&self, key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>) -> Result<(), Error>
     where
         Record: 'a,
     {
-        Ok(())
+        let pk = key.borrow();
+        let enc_pk = pk.encode();
+
+        let mut tx = self.db.write(self.name)?;
+        let mut store = tx.open_store(Self::MAIN_STORE)?;
+
+        let record = store.get(enc_pk)?
+            .map(|bytes|
+                Record::from_bytes(&bytes).map_err(Error::Codec)
+            ).transpose()?;
+
+        let record = match record {
+            Some(record) => record,
+            None => return Ok(()),
+        };
+
+        store.remove(key.borrow().encode())?;
+
+        Indexes::remove(&mut tx, (&record.key(), &record))?;
+
+        tx.commit().map_err(Error::Backend)
     }
 
     pub fn index<'a, Idx, P>(
