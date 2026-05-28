@@ -62,13 +62,9 @@ where
     {
         self.db.read(self.name)?
             .open_store(Self::MAIN_STORE)?
-            .get(key.borrow().encode())
-            .map_err(Error::Backend)
-            .and_then(|res| res.map(|bytes|
-                Record::from_bytes(&bytes)
-                    .map_err(Error::Codec))
-                    .transpose()
-            )
+            .get(key.borrow().encode())?
+            .map(|bytes| Record::from_bytes(&bytes).map_err(Error::Codec))
+            .transpose()
     }
 
     pub fn update(&self, _value: impl Borrow<Record>) -> Result<(), Error> {
