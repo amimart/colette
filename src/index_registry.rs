@@ -143,15 +143,17 @@ mod tests {
                 }
                 fn update<DB: MultiStoreWriteHandle>(
                     db: &mut DB,
-                    _old: Option<(&u32, &Record)>,
-                    _new: (&u32, &Record),
+                    _pk: &u32,
+                    _old: Option<&Record>,
+                    _new: &Record,
                 ) -> Result<(), Error> {
                     db.open_store(Self::NAME)?;
                     Ok(())
                 }
                 fn remove<DB: MultiStoreWriteHandle>(
                     db: &mut DB,
-                    _target: (&u32, &Record),
+                    _pk: &u32,
+                    _item: &Record,
                 ) -> Result<(), Error> {
                     db.open_store(Self::NAME)?;
                     Ok(())
@@ -172,14 +174,16 @@ mod tests {
         }
         fn update<DB: MultiStoreWriteHandle>(
             _db: &mut DB,
-            _old: Option<(&u32, &Record)>,
-            _new: (&u32, &Record),
+            _pk: &u32,
+            _old: Option<&Record>,
+            _new: &Record,
         ) -> Result<(), Error> {
             Err(Error::Unexpected("injected".into()))
         }
         fn remove<DB: MultiStoreWriteHandle>(
             _db: &mut DB,
-            _target: (&u32, &Record),
+            _pk: &u32,
+            _item: &Record,
         ) -> Result<(), Error> {
             Err(Error::Unexpected("injected".into()))
         }
@@ -283,7 +287,7 @@ mod tests {
 
         let cases: &[(&dyn Fn(&mut Spy) -> Result<(), Error>, &[&str], bool)] = &[
             (
-                &|s| <Nil as IndexRegistry<Record>>::update(s, None, (&pk, &record)),
+                &|s| <Nil as IndexRegistry<Record>>::update(s, &pk, None, &record),
                 &[],
                 false,
             ),
@@ -291,8 +295,7 @@ mod tests {
                 &|s| {
                     <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::update(
                         s,
-                        None,
-                        (&pk, &record),
+                        &pk, None, &record,
                     )
                 },
                 &["index_a", "index_b"],
@@ -302,8 +305,7 @@ mod tests {
                 &|s| {
                     <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<Record>>::update(
                         s,
-                        None,
-                        (&pk, &record),
+                        &pk, None, &record,
                     )
                 },
                 &[],
@@ -328,7 +330,7 @@ mod tests {
 
         let cases: &[(&dyn Fn(&mut Spy) -> Result<(), Error>, &[&str], bool)] = &[
             (
-                &|s| <Nil as IndexRegistry<Record>>::remove(s, (&pk, &record)),
+                &|s| <Nil as IndexRegistry<Record>>::remove(s, &pk, &record),
                 &[],
                 false,
             ),
@@ -336,7 +338,7 @@ mod tests {
                 &|s| {
                     <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::remove(
                         s,
-                        (&pk, &record),
+                        &pk, &record,
                     )
                 },
                 &["index_a", "index_b"],
@@ -346,7 +348,7 @@ mod tests {
                 &|s| {
                     <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<Record>>::remove(
                         s,
-                        (&pk, &record),
+                        &pk, &record,
                     )
                 },
                 &[],
