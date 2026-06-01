@@ -47,7 +47,7 @@ pub trait Index<Record: Entity> {
 
         let skey = new_skey.encode();
         if store.get(&skey)?.is_some() {
-            Err(Error::AlreadyExists(Self::NAME.to_string()))?
+            Err(Error::AlreadyExists(format!("{:?}", new_skey)))?
         }
 
         store.set(skey, pk.encode())?;

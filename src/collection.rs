@@ -48,7 +48,7 @@ where
         let mut store = tx.open_store(Self::MAIN_STORE)?;
 
         if store.get(&enc_pk)?.is_some() {
-            Err(Error::AlreadyExists(self.name.to_string()))?
+            Err(Error::AlreadyExists(format!("{:?}", pk)))?
         }
 
         store.set(&enc_pk, &value.to_bytes()?)?;
