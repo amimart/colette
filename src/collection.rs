@@ -39,6 +39,11 @@ where
         }
     }
 
+    /// Inserts a new record into the collection.
+    ///
+    /// Returns an error if a record with the same primary key already exists.
+    ///
+    /// All indexes are updated atomically within the same transaction.
     pub fn insert(&self, value: impl Borrow<Record>) -> Result<(), Error> {
         let value = value.borrow();
         let pk = value.key();
@@ -58,6 +63,11 @@ where
         tx.commit().map_err(Error::Backend)
     }
 
+    /// Updates an existing record in the collection.
+    ///
+    /// Returns an error if the record does not already exist.
+    ///
+    /// Indexes are automatically updated when indexed fields change.
     pub fn update(&self, value: impl Borrow<Record>) -> Result<(), Error> {
         let value = value.borrow();
         let pk = value.key();
@@ -82,6 +92,12 @@ where
         tx.commit().map_err(Error::Backend)
     }
 
+    /// Saves a record into the collection.
+    ///
+    /// If the record already exists, it is updated.
+    /// Otherwise, a new record is inserted.
+    ///
+    /// Indexes are updated atomically within the same transaction.
     pub fn save(&self, value: impl Borrow<Record>) -> Result<(), Error> {
         let value = value.borrow();
         let pk = value.key();
@@ -102,6 +118,11 @@ where
         tx.commit().map_err(Error::Backend)
     }
 
+    /// Removes a record from the collection by its primary key.
+    ///
+    /// If the record exists, all associated index entries are also removed.
+    ///
+    /// Returns `Ok(())` if the record does not exist.
     pub fn remove<'a>(
         &self,
         key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>,
@@ -132,6 +153,9 @@ where
         tx.commit().map_err(Error::Backend)
     }
 
+    /// Retrieves a record from the collection by its primary key.
+    ///
+    /// Returns `Ok(None)` if the record does not exist.
     pub fn get<'a>(
         &self,
         key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>,
@@ -147,6 +171,16 @@ where
             .transpose()
     }
 
+    /// Creates a typed scan over a collection index.
+    ///
+    /// Scans can be configured with:
+    /// - prefixes
+    /// - cursors
+    /// - ordering direction
+    /// - limits
+    ///
+    /// The returned scan is lazy and does not perform any database access
+    /// until iterated.
     pub fn scan<'a, Idx, P>(
         &self,
         _idx: Idx,
