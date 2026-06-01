@@ -67,8 +67,24 @@ where
             .transpose()
     }
 
-    pub fn update(&self, _value: impl Borrow<Record>) -> Result<(), Error> {
-        Ok(())
+    pub fn update(&self, value: impl Borrow<Record>) -> Result<(), Error> {
+        let value = value.borrow();
+        let pk = value.key();
+        let enc_pk = pk.encode();
+
+        let mut tx = self.db.write(self.name)?;
+        let mut store = tx.open_store(Self::MAIN_STORE)?;
+
+        let old = store.get(&enc_pk)?
+            .map(|bytes|
+                Record::from_bytes(&bytes).map_err(Error::Codec)
+            ).transpose()?;
+
+    store.set(&enc_pk, &value.to_bytes()?)?;
+
+        Indexes::update(&mut tx, &pk, old.as_ref(), &value)?;
+
+        tx.commit().map_err(Error::Backend)
     }
 
     pub fn save(&self, _value: impl Borrow<Record>) -> Result<(), Error> {
