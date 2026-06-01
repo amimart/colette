@@ -739,5 +739,76 @@ mod tests {
         let log = log.borrow();
         assert_eq!(log.removes[0], enc_pk, "remove key must be the encoded primary key");
     }
+
+    // ── get ───────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn get() {
+        let enc_pk = 1u32.encode().to_vec();
+        let enc_val = TestRecord { id: 1 }.to_bytes().unwrap();
+
+        let existing_db =
+            || MockDb::new().with_data("__main", enc_pk.clone(), enc_val.clone());
+
+        macro_rules! run {
+            ($db:expr) => {{
+                let db: MockDb = $db;
+                let log = db.log();
+                let col = Collection::<_, TestRecord, SpyRegistry>::new("col", db);
+                let result = col.get(1u32);
+                (result, log)
+            }};
+        }
+
+        struct Case {
+            name: &'static str,
+            db: MockDb,
+            expect_result: fn(&Result<Option<TestRecord>, Error>),
+            expect_opens: &'static [&'static str],
+        }
+
+        let cases = vec![
+            Case {
+                name: "returns the record when it exists",
+                db: existing_db(),
+                expect_result: |r| {
+                    let record = r.as_ref().unwrap().as_ref().unwrap();
+                    assert_eq!(record.id, 1);
+                },
+                expect_opens: &["__main"],
+            },
+            Case {
+                name: "returns None when record does not exist",
+                db: MockDb::new(),
+                expect_result: |r| assert!(matches!(r, Ok(None))),
+                expect_opens: &["__main"],
+            },
+            Case {
+                name: "propagates backend error from read()",
+                db: MockDb::new().with_read_err(|| backend_error("read failed")),
+                expect_result: |r| assert!(matches!(r, Err(Error::Backend(_)))),
+                expect_opens: &[],
+            },
+            Case {
+                name: "propagates codec error from corrupted stored bytes",
+                db: MockDb::new().with_data("__main", enc_pk.clone(), vec![0x01]),
+                expect_result: |r| assert!(matches!(r, Err(Error::Codec(_)))),
+                expect_opens: &["__main"],
+            },
+        ];
+
+        for c in cases {
+            let (result, log) = run!(c.db);
+            let log = log.borrow();
+
+            (c.expect_result)(&result);
+            assert_eq!(log.opens.as_slice(), c.expect_opens, "[{}] opens", c.name);
+        }
+
+        // Verify the exact key passed to store.get()
+        let (_, log) = run!(existing_db());
+        let log = log.borrow();
+        assert_eq!(log.gets[0], enc_pk, "get key must be the encoded primary key");
+    }
 }
 
