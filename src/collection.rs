@@ -253,7 +253,7 @@ mod tests {
     use crate::entity::Entity;
     use crate::error::{CodecError, Error};
     use crate::key::Key;
-    use crate::testing::{MockDb, SpyRegistry, backend_error};
+    use crate::testing::{backend_error, MockDb, SpyRegistry};
 
     // ── Minimal entity ────────────────────────────────────────────────────────
 
@@ -374,7 +374,12 @@ mod tests {
             assert_eq!(log.opens.as_slice(), c.expect_opens, "[{}] opens", c.name);
             assert_eq!(log.sets.len(), c.expect_sets, "[{}] sets count", c.name);
             assert_eq!(log.committed, c.expect_committed, "[{}] committed", c.name);
-            assert_eq!(SpyRegistry::was_update_called(), c.expect_registry_called, "[{}] registry called", c.name);
+            assert_eq!(
+                SpyRegistry::was_update_called(),
+                c.expect_registry_called,
+                "[{}] registry called",
+                c.name
+            );
         }
 
         // Verify the exact bytes written to the main store
@@ -382,8 +387,14 @@ mod tests {
         let (result, log) = run!(MockDb::new());
         assert!(result.is_ok());
         let log = log.borrow();
-        assert_eq!(log.sets[0].0, enc_pk, "set key must be the encoded primary key");
-        assert_eq!(log.sets[0].1, enc_val, "set value must be to_bytes() output");
+        assert_eq!(
+            log.sets[0].0, enc_pk,
+            "set key must be the encoded primary key"
+        );
+        assert_eq!(
+            log.sets[0].1, enc_val,
+            "set value must be to_bytes() output"
+        );
     }
 
     // ── update ────────────────────────────────────────────────────────────────
@@ -393,8 +404,7 @@ mod tests {
         let enc_pk = 1u32.encode().to_vec();
         let enc_val = TestRecord { id: 1 }.to_bytes().unwrap();
 
-        let existing_db =
-            || MockDb::new().with_data("__main", enc_pk.clone(), enc_val.clone());
+        let existing_db = || MockDb::new().with_data("__main", enc_pk.clone(), enc_val.clone());
 
         macro_rules! run {
             ($db:expr) => {{
@@ -492,7 +502,12 @@ mod tests {
             assert_eq!(log.opens.as_slice(), c.expect_opens, "[{}] opens", c.name);
             assert_eq!(log.sets.len(), c.expect_sets, "[{}] sets count", c.name);
             assert_eq!(log.committed, c.expect_committed, "[{}] committed", c.name);
-            assert_eq!(SpyRegistry::was_update_called(), c.expect_registry_called, "[{}] registry called", c.name);
+            assert_eq!(
+                SpyRegistry::was_update_called(),
+                c.expect_registry_called,
+                "[{}] registry called",
+                c.name
+            );
         }
 
         // Verify the exact bytes written to the main store
@@ -500,8 +515,14 @@ mod tests {
         let (result, log) = run!(existing_db());
         assert!(result.is_ok());
         let log = log.borrow();
-        assert_eq!(log.sets[0].0, enc_pk, "set key must be the encoded primary key");
-        assert_eq!(log.sets[0].1, enc_val, "set value must be to_bytes() output");
+        assert_eq!(
+            log.sets[0].0, enc_pk,
+            "set key must be the encoded primary key"
+        );
+        assert_eq!(
+            log.sets[0].1, enc_val,
+            "set value must be to_bytes() output"
+        );
     }
 
     // ── save ──────────────────────────────────────────────────────────────────
@@ -511,8 +532,7 @@ mod tests {
         let enc_pk = 1u32.encode().to_vec();
         let enc_val = TestRecord { id: 1 }.to_bytes().unwrap();
 
-        let existing_db =
-            || MockDb::new().with_data("__main", enc_pk.clone(), enc_val.clone());
+        let existing_db = || MockDb::new().with_data("__main", enc_pk.clone(), enc_val.clone());
 
         macro_rules! run {
             ($db:expr) => {{
@@ -610,7 +630,12 @@ mod tests {
             assert_eq!(log.opens.as_slice(), c.expect_opens, "[{}] opens", c.name);
             assert_eq!(log.sets.len(), c.expect_sets, "[{}] sets count", c.name);
             assert_eq!(log.committed, c.expect_committed, "[{}] committed", c.name);
-            assert_eq!(SpyRegistry::was_update_called(), c.expect_registry_called, "[{}] registry called", c.name);
+            assert_eq!(
+                SpyRegistry::was_update_called(),
+                c.expect_registry_called,
+                "[{}] registry called",
+                c.name
+            );
         }
 
         // Verify the exact bytes written to the main store
@@ -618,8 +643,14 @@ mod tests {
         let (result, log) = run!(MockDb::new());
         assert!(result.is_ok());
         let log = log.borrow();
-        assert_eq!(log.sets[0].0, enc_pk, "set key must be the encoded primary key");
-        assert_eq!(log.sets[0].1, enc_val, "set value must be to_bytes() output");
+        assert_eq!(
+            log.sets[0].0, enc_pk,
+            "set key must be the encoded primary key"
+        );
+        assert_eq!(
+            log.sets[0].1, enc_val,
+            "set value must be to_bytes() output"
+        );
     }
 
     // ── remove ────────────────────────────────────────────────────────────────
@@ -629,8 +660,7 @@ mod tests {
         let enc_pk = 1u32.encode().to_vec();
         let enc_val = TestRecord { id: 1 }.to_bytes().unwrap();
 
-        let existing_db =
-            || MockDb::new().with_data("__main", enc_pk.clone(), enc_val.clone());
+        let existing_db = || MockDb::new().with_data("__main", enc_pk.clone(), enc_val.clone());
 
         macro_rules! run {
             ($db:expr) => {{
@@ -727,9 +757,19 @@ mod tests {
 
             (c.expect_result)(&result);
             assert_eq!(log.opens.as_slice(), c.expect_opens, "[{}] opens", c.name);
-            assert_eq!(log.removes.len(), c.expect_removes, "[{}] removes count", c.name);
+            assert_eq!(
+                log.removes.len(),
+                c.expect_removes,
+                "[{}] removes count",
+                c.name
+            );
             assert_eq!(log.committed, c.expect_committed, "[{}] committed", c.name);
-            assert_eq!(SpyRegistry::was_remove_called(), c.expect_registry_called, "[{}] registry called", c.name);
+            assert_eq!(
+                SpyRegistry::was_remove_called(),
+                c.expect_registry_called,
+                "[{}] registry called",
+                c.name
+            );
         }
 
         // Verify the exact key passed to store.remove()
@@ -737,7 +777,10 @@ mod tests {
         let (result, log) = run!(existing_db());
         assert!(result.is_ok());
         let log = log.borrow();
-        assert_eq!(log.removes[0], enc_pk, "remove key must be the encoded primary key");
+        assert_eq!(
+            log.removes[0], enc_pk,
+            "remove key must be the encoded primary key"
+        );
     }
 
     // ── get ───────────────────────────────────────────────────────────────────
@@ -747,8 +790,7 @@ mod tests {
         let enc_pk = 1u32.encode().to_vec();
         let enc_val = TestRecord { id: 1 }.to_bytes().unwrap();
 
-        let existing_db =
-            || MockDb::new().with_data("__main", enc_pk.clone(), enc_val.clone());
+        let existing_db = || MockDb::new().with_data("__main", enc_pk.clone(), enc_val.clone());
 
         macro_rules! run {
             ($db:expr) => {{
@@ -808,7 +850,9 @@ mod tests {
         // Verify the exact key passed to store.get()
         let (_, log) = run!(existing_db());
         let log = log.borrow();
-        assert_eq!(log.gets[0], enc_pk, "get key must be the encoded primary key");
+        assert_eq!(
+            log.gets[0], enc_pk,
+            "get key must be the encoded primary key"
+        );
     }
 }
-

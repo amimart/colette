@@ -1,6 +1,6 @@
-use std::fmt::Debug;
 use crate::inline_vec::IVec;
 use crate::{impl_signed_integer_key, impl_unsigned_integer_key};
+use std::fmt::Debug;
 
 /// A value that can be encoded as an ordered key for Colette stores and indexes.
 ///
