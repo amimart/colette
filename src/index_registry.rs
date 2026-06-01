@@ -12,15 +12,17 @@ pub struct Cons<Head, Tail>(PhantomData<(Head, Tail)>);
 
 /// IndexRegistry is a recursive HList trait to allow defining multiple indexes as generic types.
 pub trait IndexRegistry<T: Entity> {
-    fn set<'a, DB: MultiStoreWriteHandle>(
+    fn update<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        old: Option<(&T::Key<'a>, &'a T)>,
-        new: (&T::Key<'a>, &'a T),
+        pk: &T::Key<'a>,
+        old: Option<&T>,
+        new: &'a T,
     ) -> Result<(), Error>;
 
     fn remove<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        target: (&T::Key<'a>, &'a T),
+        pk: &T::Key<'a>,
+        item: &'a T,
     ) -> Result<(), Error>;
 
     fn has_index(name: &str) -> bool;
@@ -30,17 +32,19 @@ impl<T> IndexRegistry<T> for Nil
 where
     T: Entity,
 {
-    fn set<'a, DB: MultiStoreWriteHandle>(
+    fn update<'a, DB: MultiStoreWriteHandle>(
         _db: &mut DB,
-        _old: Option<(&T::Key<'a>, &'a T)>,
-        _new: (&T::Key<'a>, &'a T),
+        _pk: &T::Key<'a>,
+        _old: Option<&T>,
+        _new: &'a T,
     ) -> Result<(), Error> {
         Ok(())
     }
 
     fn remove<'a, DB: MultiStoreWriteHandle>(
         _db: &mut DB,
-        _target: (&T::Key<'a>, &'a T),
+        _pk: &T::Key<'a>,
+        _item: &'a T,
     ) -> Result<(), Error> {
         Ok(())
     }
@@ -55,23 +59,25 @@ where
     T: Entity,
     Head: Index<T>,
     Tail: IndexRegistry<T>,
-    for<'a> Head::Kind<'a>: IndexKind<Head::Key<'a>, T::Key<'a>>,
+    for<'ik, 'pk> Head::Kind<'ik>: IndexKind<Head::Key<'ik>, T::Key<'pk>>,
 {
-    fn set<'a, DB: MultiStoreWriteHandle>(
+    fn update<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        old: Option<(&T::Key<'a>, &'a T)>,
-        new: (&T::Key<'a>, &'a T),
+        pk: &T::Key<'a>,
+        old: Option<&T>,
+        new: &'a T,
     ) -> Result<(), Error> {
-        Head::set(db, old, new)?;
-        Tail::set(db, old, new)
+        Head::update(db, pk, old, new)?;
+        Tail::update(db, pk, old, new)
     }
 
     fn remove<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        target: (&T::Key<'a>, &'a T),
+        pk: &T::Key<'a>,
+        item: &'a T,
     ) -> Result<(), Error> {
-        Head::remove(db, target)?;
-        Tail::remove(db, target)
+        Head::remove(db, pk, item)?;
+        Tail::remove(db, pk, item)
     }
 
     fn has_index(name: &str) -> bool {
@@ -135,17 +141,19 @@ mod tests {
                 fn key(r: &Record) -> u32 {
                     r.0
                 }
-                fn set<DB: MultiStoreWriteHandle>(
+                fn update<DB: MultiStoreWriteHandle>(
                     db: &mut DB,
-                    _old: Option<(&u32, &Record)>,
-                    _new: (&u32, &Record),
+                    _pk: &u32,
+                    _old: Option<&Record>,
+                    _new: &Record,
                 ) -> Result<(), Error> {
                     db.open_store(Self::NAME)?;
                     Ok(())
                 }
                 fn remove<DB: MultiStoreWriteHandle>(
                     db: &mut DB,
-                    _target: (&u32, &Record),
+                    _pk: &u32,
+                    _item: &Record,
                 ) -> Result<(), Error> {
                     db.open_store(Self::NAME)?;
                     Ok(())
@@ -164,16 +172,18 @@ mod tests {
         fn key(r: &Record) -> u32 {
             r.0
         }
-        fn set<DB: MultiStoreWriteHandle>(
+        fn update<DB: MultiStoreWriteHandle>(
             _db: &mut DB,
-            _old: Option<(&u32, &Record)>,
-            _new: (&u32, &Record),
+            _pk: &u32,
+            _old: Option<&Record>,
+            _new: &Record,
         ) -> Result<(), Error> {
             Err(Error::Unexpected("injected".into()))
         }
         fn remove<DB: MultiStoreWriteHandle>(
             _db: &mut DB,
-            _target: (&u32, &Record),
+            _pk: &u32,
+            _item: &Record,
         ) -> Result<(), Error> {
             Err(Error::Unexpected("injected".into()))
         }
@@ -271,22 +281,20 @@ mod tests {
     // ── set ───────────────────────────────────────────────────────────────────
 
     #[test]
-    fn set() {
+    fn update() {
         let record = Record(1);
         let pk = 1u32;
 
         let cases: &[(&dyn Fn(&mut Spy) -> Result<(), Error>, &[&str], bool)] = &[
             (
-                &|s| <Nil as IndexRegistry<Record>>::set(s, None, (&pk, &record)),
+                &|s| <Nil as IndexRegistry<Record>>::update(s, &pk, None, &record),
                 &[],
                 false,
             ),
             (
                 &|s| {
-                    <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::set(
-                        s,
-                        None,
-                        (&pk, &record),
+                    <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::update(
+                        s, &pk, None, &record,
                     )
                 },
                 &["index_a", "index_b"],
@@ -294,10 +302,8 @@ mod tests {
             ),
             (
                 &|s| {
-                    <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<Record>>::set(
-                        s,
-                        None,
-                        (&pk, &record),
+                    <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<Record>>::update(
+                        s, &pk, None, &record,
                     )
                 },
                 &[],
@@ -322,15 +328,14 @@ mod tests {
 
         let cases: &[(&dyn Fn(&mut Spy) -> Result<(), Error>, &[&str], bool)] = &[
             (
-                &|s| <Nil as IndexRegistry<Record>>::remove(s, (&pk, &record)),
+                &|s| <Nil as IndexRegistry<Record>>::remove(s, &pk, &record),
                 &[],
                 false,
             ),
             (
                 &|s| {
                     <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::remove(
-                        s,
-                        (&pk, &record),
+                        s, &pk, &record,
                     )
                 },
                 &["index_a", "index_b"],
@@ -339,8 +344,7 @@ mod tests {
             (
                 &|s| {
                     <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<Record>>::remove(
-                        s,
-                        (&pk, &record),
+                        s, &pk, &record,
                     )
                 },
                 &[],

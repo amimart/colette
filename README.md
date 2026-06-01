@@ -37,7 +37,7 @@ let downloads = collection::<Download, DB>("downloads", DB {})
     .with_index::<UniqueName>()
     .with_index::<ByStatus>()
     .with_index::<ByStatusAndSize>()
-    build();
+    .build();
 
 downloads.save(dl)?;
 let my_dl = downloads.get(&dl.info_hash)?;
@@ -64,10 +64,10 @@ pub struct Download {
     size: u64,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct InfoHash([u8; 20]);
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Status {
     Queued,
     Submitted,

@@ -10,3 +10,6 @@ pub mod macros;
 pub mod prefix;
 pub mod scan;
 pub mod store;
+
+#[cfg(test)]
+pub mod testing;

@@ -1,5 +1,6 @@
 use crate::inline_vec::IVec;
 use crate::{impl_signed_integer_key, impl_unsigned_integer_key};
+use std::fmt::Debug;
 
 /// A value that can be encoded as an ordered key for Colette stores and indexes.
 ///
@@ -37,7 +38,7 @@ use crate::{impl_signed_integer_key, impl_unsigned_integer_key};
 ///
 /// Changing a `Key` implementation changes the physical storage layout and
 /// should be treated as a migration.
-pub trait Key: Eq {
+pub trait Key: Debug + Eq {
     /// The encoded size of the key.
     ///
     /// Fixed-size keys allow Colette to preallocate buffers efficiently.

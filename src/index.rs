@@ -19,15 +19,19 @@ pub trait Index<Record: Entity> {
 
     fn key(entity: &Record) -> Self::Key<'_>;
 
-    fn set<'a, DB: MultiStoreWriteHandle>(
+    fn update<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        old: Option<(&Record::Key<'a>, &'a Record)>,
-        new: (&Record::Key<'a>, &'a Record),
-    ) -> Result<(), Error> {
-        let new_skey = Self::Kind::store_key(Self::key(new.1), new.0);
+        pk: &Record::Key<'a>,
+        old: Option<&Record>,
+        new: &'a Record,
+    ) -> Result<(), Error>
+    where
+        for<'ik, 'pk> Self::Kind<'ik>: IndexKind<Self::Key<'ik>, Record::Key<'pk>>,
+    {
+        let new_skey = Self::Kind::store_key(Self::key(new), pk);
 
         let mut store = None;
-        if let Some((pk, entity)) = old {
+        if let Some(entity) = old {
             let old_skey = Self::Kind::store_key(Self::key(entity), pk);
 
             if old_skey == new_skey {
@@ -43,28 +47,28 @@ pub trait Index<Record: Entity> {
 
         let skey = new_skey.encode();
         if store.get(&skey)?.is_some() {
-            Err(Error::AlreadyExists(Self::NAME.to_string()))?
+            Err(Error::AlreadyExists(format!("{:?}", new_skey)))?
         }
 
-        store.set(skey, new.0.encode())?;
+        store.set(skey, pk.encode())?;
 
         Ok(())
     }
 
     fn remove<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        target: (&Record::Key<'a>, &'a Record),
+        pk: &Record::Key<'a>,
+        item: &'a Record,
     ) -> Result<(), Error> {
         let mut store = db.open_store(Self::NAME)?;
-        let ikey = Self::key(target.1);
-        let skey = Self::Kind::store_key(ikey, target.0);
+        let skey = Self::Kind::store_key(Self::key(item), pk);
 
         store.remove(skey.encode()).map_err(Error::Backend)
     }
 }
 
-pub type StoreKey<'a, I, PK, T> =
-    <<I as Index<T>>::Kind<'a> as IndexKind<<I as Index<T>>::Key<'a>, PK>>::StoreKey<'a>;
+pub type StoreKey<'a, 'b, I, PK, T> =
+    <<I as Index<T>>::Kind<'a> as IndexKind<<I as Index<T>>::Key<'b>, PK>>::StoreKey<'a, 'b>;
 
 /// IndexKind helps to specify an index behavior by expressing the actual stored key in the index
 /// based on the index key and the underlying entity primary key.
@@ -76,12 +80,12 @@ where
     IndexKey: Key,
     PrimaryKey: Key,
 {
-    type StoreKey<'a>: Key
+    type StoreKey<'a, 'b>: Key
     where
         IndexKey: 'a,
-        PrimaryKey: 'a;
+        PrimaryKey: 'b;
 
-    fn store_key<'a>(k: IndexKey, pk: &'a PrimaryKey) -> Self::StoreKey<'a>
+    fn store_key<'a, 'b>(k: IndexKey, pk: &'b PrimaryKey) -> Self::StoreKey<'a, 'b>
     where
         IndexKey: 'a;
 }
@@ -93,13 +97,13 @@ where
     IndexKey: Key,
     PrimaryKey: Key,
 {
-    type StoreKey<'a>
+    type StoreKey<'a, 'b>
         = IndexKey
     where
         IndexKey: 'a,
-        PrimaryKey: 'a;
+        PrimaryKey: 'b;
 
-    fn store_key<'a>(k: IndexKey, _pk: &'a PrimaryKey) -> Self::StoreKey<'a>
+    fn store_key<'a, 'b>(k: IndexKey, _pk: &'b PrimaryKey) -> Self::StoreKey<'a, 'b>
     where
         IndexKey: 'a,
     {
@@ -114,13 +118,13 @@ where
     IndexKey: Key + AppendKey<PrimaryKey>,
     PrimaryKey: Key,
 {
-    type StoreKey<'a>
-        = <IndexKey as AppendKey<PrimaryKey>>::Key<'a>
+    type StoreKey<'a, 'b>
+        = <IndexKey as AppendKey<PrimaryKey>>::Key<'b>
     where
         IndexKey: 'a,
-        PrimaryKey: 'a;
+        PrimaryKey: 'b;
 
-    fn store_key<'a>(k: IndexKey, pk: &'a PrimaryKey) -> Self::StoreKey<'a>
+    fn store_key<'a, 'b>(k: IndexKey, pk: &'b PrimaryKey) -> Self::StoreKey<'a, 'b>
     where
         IndexKey: 'a,
     {

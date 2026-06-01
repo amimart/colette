@@ -21,6 +21,13 @@ pub enum Error {
 #[derive(Debug, thiserror::Error)]
 pub struct BackendError(Box<dyn std::error::Error + Send + Sync>);
 
+impl BackendError {
+    #[cfg(test)]
+    pub(crate) fn new(e: impl std::error::Error + Send + Sync + 'static) -> Self {
+        BackendError(Box::new(e))
+    }
+}
+
 impl Display for BackendError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
@@ -29,6 +36,13 @@ impl Display for BackendError {
 
 #[derive(Debug, thiserror::Error)]
 pub struct CodecError(Box<dyn std::error::Error + Send + Sync>);
+
+impl CodecError {
+    #[cfg(test)]
+    pub(crate) fn new(e: impl std::error::Error + Send + Sync + 'static) -> Self {
+        CodecError(Box::new(e))
+    }
+}
 
 impl Display for CodecError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -42,17 +42,17 @@ pub enum ScanRange {
 
 pub struct IndexScan<'a, ReadHandle, Record, Idx>
 where
+    Self: 'a,
     ReadHandle: MultiStoreReadHandle,
     Record: Entity,
     Idx: Index<Record>,
-    Idx::Kind<'a>: IndexKind<Idx::Key<'a>, Record::Key<'a>>,
-    Self: 'a,
+    for<'b> Idx::Kind<'b>: IndexKind<Idx::Key<'b>, Record::Key<'b>>,
 {
     collection_name: &'static str,
     read_handle: ReadHandle,
     range: ScanRange,
     direction: Direction,
-    after: Option<StoreKey<'a, Idx, Record::Key<'a>, Record>>,
+    after: Option<StoreKey<'a, 'a, Idx, Record::Key<'a>, Record>>,
 
     _marker: PhantomData<(Record, Idx)>,
 }
@@ -62,7 +62,7 @@ where
     ReadHandle: MultiStoreReadHandle,
     Record: Entity,
     Idx: Index<Record>,
-    Idx::Kind<'a>: IndexKind<Idx::Key<'a>, Record::Key<'a>>,
+    for<'b> Idx::Kind<'b>: IndexKind<Idx::Key<'b>, Record::Key<'b>>,
 {
     pub fn new(collection_name: &'static str, read_handle: ReadHandle) -> Self {
         Self {
@@ -78,7 +78,7 @@ where
 
     pub fn range(
         mut self,
-        range: Range<Bound<StoreKey<'a, Idx, Record::Key<'a>, Record>>>,
+        range: Range<Bound<StoreKey<'a, 'a, Idx, Record::Key<'a>, Record>>>,
     ) -> Self {
         self.range = ScanRange::Range {
             left: range.start.map(|p| p.encode().as_ref().to_vec()),
@@ -92,7 +92,7 @@ where
         self
     }
 
-    pub fn after(mut self, cursor: StoreKey<'a, Idx, Record::Key<'a>, Record>) -> Self {
+    pub fn after(mut self, cursor: StoreKey<'a, 'a, Idx, Record::Key<'a>, Record>) -> Self {
         self.after = Some(cursor);
         self
     }
@@ -116,15 +116,15 @@ pub trait PrefixScan<StoredKey: Key + Prefixable<KeyPrefix>, KeyPrefix: Prefix> 
 }
 
 impl<'a, ReadHandle, Record, Idx, KeyPrefix>
-    PrefixScan<StoreKey<'a, Idx, Record::Key<'a>, Record>, KeyPrefix>
+    PrefixScan<StoreKey<'a, 'a, Idx, Record::Key<'a>, Record>, KeyPrefix>
     for IndexScan<'a, ReadHandle, Record, Idx>
 where
     ReadHandle: MultiStoreReadHandle,
     Record: Entity,
     Idx: Index<Record>,
-    Idx::Kind<'a>: IndexKind<Idx::Key<'a>, Record::Key<'a>>,
     KeyPrefix: Prefix,
-    StoreKey<'a, Idx, Record::Key<'a>, Record>: Key + Prefixable<KeyPrefix>,
+    StoreKey<'a, 'a, Idx, Record::Key<'a>, Record>: Key + Prefixable<KeyPrefix>,
+    for<'b> Idx::Kind<'b>: IndexKind<Idx::Key<'b>, Record::Key<'b>>,
 {
     fn prefix(mut self, prefix: KeyPrefix) -> Self {
         self.range = ScanRange::Prefix(prefix.encode_prefix());
@@ -141,7 +141,7 @@ where
 
     fn range(
         mut self,
-        range: Range<Bound<PrefixOrKey<StoreKey<'a, Idx, Record::Key<'a>, Record>, KeyPrefix>>>,
+        range: Range<Bound<PrefixOrKey<StoreKey<'a, 'a, Idx, Record::Key<'a>, Record>, KeyPrefix>>>,
     ) -> Self {
         self.range = ScanRange::Range {
             left: range.start.map(|p| p.encode()),
