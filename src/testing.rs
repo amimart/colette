@@ -4,11 +4,13 @@
 //! Every operation performed through a [`MockDb`] is recorded in a shared
 //! [`TxLog`] that callers can inspect after the fact.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::error::BackendError;
+use crate::entity::Entity;
+use crate::error::{BackendError, Error};
+use crate::index_registry::IndexRegistry;
 use crate::scan::{Direction, ScanRange};
 use crate::store::{
     MultiStore, MultiStoreReadHandle, MultiStoreWriteHandle, ReadKVStore, ReadWriteKVStore,
@@ -246,5 +248,77 @@ impl MultiStore for MockDb {
             store_data: self.store_data.clone(),
             commit_err: self.commit_err,
         })
+    }
+}
+
+// ── SpyRegistry ───────────────────────────────────────────────────────────────
+
+thread_local! {
+    static REGISTRY_UPDATE_CALLED: Cell<bool> = Cell::new(false);
+    static REGISTRY_REMOVE_CALLED: Cell<bool> = Cell::new(false);
+    static REGISTRY_SHOULD_FAIL: Cell<bool>   = Cell::new(false);
+}
+
+/// A mock [`IndexRegistry`] backed by thread-local flags.
+///
+/// Each test thread starts with a clean slate. Call [`SpyRegistry::reset`]
+/// between successive uses within the same test function.
+pub struct SpyRegistry;
+
+impl SpyRegistry {
+    /// Resets all flags to their initial state.
+    pub fn reset() {
+        REGISTRY_UPDATE_CALLED.with(|c| c.set(false));
+        REGISTRY_REMOVE_CALLED.with(|c| c.set(false));
+        REGISTRY_SHOULD_FAIL.with(|c| c.set(false));
+    }
+
+    /// When set to `true`, the next `update` or `remove` call returns
+    /// `Err(Error::Unexpected(...))`.
+    pub fn set_fail(fail: bool) {
+        REGISTRY_SHOULD_FAIL.with(|c| c.set(fail));
+    }
+
+    /// Returns `true` if `update` was called since the last [`reset`].
+    pub fn was_update_called() -> bool {
+        REGISTRY_UPDATE_CALLED.with(|c| c.get())
+    }
+
+    /// Returns `true` if `remove` was called since the last [`reset`].
+    pub fn was_remove_called() -> bool {
+        REGISTRY_REMOVE_CALLED.with(|c| c.get())
+    }
+
+    fn fail_if_needed() -> Result<(), Error> {
+        if REGISTRY_SHOULD_FAIL.with(|c| c.get()) {
+            Err(Error::Unexpected("injected registry error".into()))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+impl<T: Entity> IndexRegistry<T> for SpyRegistry {
+    fn update<'a, DB: MultiStoreWriteHandle>(
+        _db: &mut DB,
+        _pk: &T::Key<'a>,
+        _old: Option<&T>,
+        _new: &'a T,
+    ) -> Result<(), Error> {
+        REGISTRY_UPDATE_CALLED.with(|c| c.set(true));
+        Self::fail_if_needed()
+    }
+
+    fn remove<'a, DB: MultiStoreWriteHandle>(
+        _db: &mut DB,
+        _pk: &T::Key<'a>,
+        _item: &'a T,
+    ) -> Result<(), Error> {
+        REGISTRY_REMOVE_CALLED.with(|c| c.set(true));
+        Self::fail_if_needed()
+    }
+
+    fn has_index(_name: &str) -> bool {
+        false
     }
 }
