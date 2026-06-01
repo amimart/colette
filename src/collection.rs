@@ -496,4 +496,131 @@ mod tests {
         assert_eq!(fail_sets, 1, "failing index: main record was written before index error");
         assert!(!fail_committed, "failing index: commit must not be called");
     }
+
+    #[test]
+    fn update() {
+        let enc_pk = 1u32.encode().to_vec();
+        let enc_val = TestRecord { id: 1 }.to_bytes().unwrap();
+
+        // Pre-seeds the main store with a valid existing record.
+        let existing_db =
+            || MockDb::new().with_data("__main", enc_pk.clone(), enc_val.clone());
+
+        macro_rules! run {
+            ($indexes:ty, $db:expr) => {{
+                let db: MockDb = $db;
+                let log = db.log();
+                let col = Collection::<_, TestRecord, $indexes>::new("col", db);
+                let result = col.update(TestRecord { id: 1 });
+                (result, log)
+            }};
+        }
+
+        // ── Store-level cases (index type fixed to Nil) ───────────────────────
+
+        struct Case {
+            name: &'static str,
+            db: MockDb,
+            expect_result: fn(&Result<(), Error>),
+            expect_opens: &'static [&'static str],
+            expect_sets: usize,
+            expect_committed: bool,
+        }
+
+        let cases = vec![
+            Case {
+                name: "updates existing record",
+                db: existing_db(),
+                expect_result: |r| assert!(r.is_ok()),
+                expect_opens: &["__main"],
+                expect_sets: 1,
+                expect_committed: true,
+            },
+            Case {
+                name: "fails when record not found",
+                db: MockDb::new(),
+                expect_result: |r| assert!(matches!(r, Err(Error::NotFound(_)))),
+                expect_opens: &["__main"],
+                expect_sets: 0,
+                expect_committed: false,
+            },
+            Case {
+                name: "propagates backend error from write()",
+                db: MockDb::new().with_write_err(|| backend_error("write failed")),
+                expect_result: |r| assert!(matches!(r, Err(Error::Backend(_)))),
+                expect_opens: &[],
+                expect_sets: 0,
+                expect_committed: false,
+            },
+            Case {
+                name: "propagates backend error from commit()",
+                db: existing_db().with_commit_err(|| backend_error("commit failed")),
+                expect_result: |r| assert!(matches!(r, Err(Error::Backend(_)))),
+                expect_opens: &["__main"],
+                expect_sets: 1,
+                expect_committed: true,
+            },
+            Case {
+                // from_bytes is called on the stored value before set — codec errors must surface
+                name: "propagates codec error from corrupted stored bytes",
+                db: MockDb::new().with_data("__main", enc_pk.clone(), vec![0x01]),
+                expect_result: |r| assert!(matches!(r, Err(Error::Codec(_)))),
+                expect_opens: &["__main"],
+                expect_sets: 0,
+                expect_committed: false,
+            },
+        ];
+
+        for c in cases {
+            let (result, log) = run!(Nil, c.db);
+            let log = log.borrow();
+
+            (c.expect_result)(&result);
+            assert_eq!(log.opens.as_slice(), c.expect_opens, "[{}] opens", c.name);
+            assert_eq!(log.sets.len(), c.expect_sets, "[{}] sets count", c.name);
+            assert_eq!(log.committed, c.expect_committed, "[{}] committed", c.name);
+        }
+
+        // Verify set writes the correct key and value bytes
+        {
+            let (result, log) = run!(Nil, existing_db());
+            assert!(result.is_ok());
+            let log = log.borrow();
+            assert_eq!(log.sets[0].0, enc_pk, "set key must be the encoded primary key");
+            assert_eq!(log.sets[0].1, enc_val, "set value must be to_bytes() output");
+        }
+
+        // ── Index dispatch ────────────────────────────────────────────────────
+
+        {
+            let (r, log) = run!(Nil, existing_db());
+            let log = log.borrow();
+            assert!(r.is_ok(), "no indexes: result");
+            assert_eq!(log.opens, vec!["__main"], "no indexes: opens");
+            assert!(log.committed, "no indexes: committed");
+        }
+        {
+            let (r, log) = run!(Cons<IndexA, Nil>, existing_db());
+            let log = log.borrow();
+            assert!(r.is_ok(), "one index: result");
+            assert_eq!(log.opens, vec!["__main", "index_a"], "one index: opens");
+            assert!(log.committed, "one index: committed");
+        }
+        {
+            let (r, log) = run!(Cons<IndexA, Cons<IndexB, Nil>>, existing_db());
+            let log = log.borrow();
+            assert!(r.is_ok(), "two indexes: result");
+            assert_eq!(log.opens, vec!["__main", "index_a", "index_b"], "two indexes: opens");
+            assert!(log.committed, "two indexes: committed");
+        }
+        {
+            // Failing index: set happened on main store, but commit is skipped
+            let (r, log) = run!(Cons<FailIndex, Nil>, existing_db());
+            let log = log.borrow();
+            assert!(matches!(r, Err(Error::Unexpected(_))), "failing index: error propagated");
+            assert_eq!(log.opens, vec!["__main"], "failing index: only main store opened");
+            assert_eq!(log.sets.len(), 1, "failing index: main record written before index error");
+            assert!(!log.committed, "failing index: commit must not be called");
+        }
+    }
 }
