@@ -22,6 +22,7 @@ pub enum Error {
 pub struct BackendError(Box<dyn std::error::Error + Send + Sync>);
 
 impl BackendError {
+    #[cfg(test)]
     pub(crate) fn new(e: impl std::error::Error + Send + Sync + 'static) -> Self {
         BackendError(Box::new(e))
     }
@@ -37,6 +38,7 @@ impl Display for BackendError {
 pub struct CodecError(Box<dyn std::error::Error + Send + Sync>);
 
 impl CodecError {
+    #[cfg(test)]
     pub(crate) fn new(e: impl std::error::Error + Send + Sync + 'static) -> Self {
         CodecError(Box::new(e))
     }
