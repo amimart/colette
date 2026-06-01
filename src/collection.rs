@@ -58,21 +58,6 @@ where
         tx.commit().map_err(Error::Backend)
     }
 
-    pub fn get<'a>(
-        &self,
-        key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>,
-    ) -> Result<Option<Record>, Error>
-    where
-        Record: 'a,
-    {
-        self.db
-            .read(self.name)?
-            .open_store(Self::MAIN_STORE)?
-            .get(key.borrow().encode())?
-            .map(|bytes| Record::from_bytes(&bytes).map_err(Error::Codec))
-            .transpose()
-    }
-
     pub fn update(&self, value: impl Borrow<Record>) -> Result<(), Error> {
         let value = value.borrow();
         let pk = value.key();
@@ -147,7 +132,22 @@ where
         tx.commit().map_err(Error::Backend)
     }
 
-    pub fn index<'a, Idx, P>(
+    pub fn get<'a>(
+        &self,
+        key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>,
+    ) -> Result<Option<Record>, Error>
+    where
+        Record: 'a,
+    {
+        self.db
+            .read(self.name)?
+            .open_store(Self::MAIN_STORE)?
+            .get(key.borrow().encode())?
+            .map(|bytes| Record::from_bytes(&bytes).map_err(Error::Codec))
+            .transpose()
+    }
+
+    pub fn scan<'a, Idx, P>(
         &self,
         _idx: Idx,
     ) -> Result<IndexScan<'a, DB::ReadHandle, Record, Idx>, Error>
