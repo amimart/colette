@@ -37,7 +37,7 @@ let downloads = collection::<Download, DB>("downloads", DB {})
     .with_index::<UniqueName>()
     .with_index::<ByStatus>()
     .with_index::<ByStatusAndSize>()
-    build();
+    .build();
 
 downloads.save(dl)?;
 let my_dl = downloads.get(&dl.info_hash)?;
