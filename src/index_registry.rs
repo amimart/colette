@@ -12,15 +12,17 @@ pub struct Cons<Head, Tail>(PhantomData<(Head, Tail)>);
 
 /// IndexRegistry is a recursive HList trait to allow defining multiple indexes as generic types.
 pub trait IndexRegistry<T: Entity> {
-    fn update<'a, DB: MultiStoreWriteHandle>(
+    fn update<'a, 'b, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        old: Option<(&T::Key<'a>, &'a T)>,
-        new: (&T::Key<'a>, &'a T),
+        pk: &T::Key<'a>,
+        old: Option<&'b T>,
+        new: &'a T,
     ) -> Result<(), Error>;
 
     fn remove<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        target: (&T::Key<'a>, &'a T),
+        pk: &T::Key<'a>,
+        item: &'a T,
     ) -> Result<(), Error>;
 
     fn has_index(name: &str) -> bool;
@@ -30,17 +32,19 @@ impl<T> IndexRegistry<T> for Nil
 where
     T: Entity,
 {
-    fn update<'a, DB: MultiStoreWriteHandle>(
+    fn update<'a, 'b, DB: MultiStoreWriteHandle>(
         _db: &mut DB,
-        _old: Option<(&T::Key<'a>, &'a T)>,
-        _new: (&T::Key<'a>, &'a T),
+        _pk: &T::Key<'a>,
+        _old: Option<&'b T>,
+        _new: &'a T,
     ) -> Result<(), Error> {
         Ok(())
     }
 
     fn remove<'a, DB: MultiStoreWriteHandle>(
         _db: &mut DB,
-        _target: (&T::Key<'a>, &'a T),
+        _pk: &T::Key<'a>,
+        _item: &'a T,
     ) -> Result<(), Error> {
         Ok(())
     }
@@ -55,23 +59,25 @@ where
     T: Entity,
     Head: Index<T>,
     Tail: IndexRegistry<T>,
-    for<'a> Head::Kind<'a>: IndexKind<Head::Key<'a>, T::Key<'a>>,
+    for<'ik, 'pk> Head::Kind<'ik>: IndexKind<Head::Key<'ik>, T::Key<'pk>>,
 {
-    fn update<'a, DB: MultiStoreWriteHandle>(
+    fn update<'a, 'b, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        old: Option<(&T::Key<'a>, &'a T)>,
-        new: (&T::Key<'a>, &'a T),
+        pk: &T::Key<'a>,
+        old: Option<&'b T>,
+        new: &'a T,
     ) -> Result<(), Error> {
-        Head::update(db, old, new)?;
-        Tail::update(db, old, new)
+        Head::update(db, pk, old, new)?;
+        Tail::update(db, pk, old, new)
     }
 
     fn remove<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
-        target: (&T::Key<'a>, &'a T),
+        pk: &T::Key<'a>,
+        item: &'a T,
     ) -> Result<(), Error> {
-        Head::remove(db, target)?;
-        Tail::remove(db, target)
+        Head::remove(db, pk, item)?;
+        Tail::remove(db, pk, item)
     }
 
     fn has_index(name: &str) -> bool {

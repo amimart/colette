@@ -51,7 +51,7 @@ where
 
         store.set(&enc_pk, &value.to_bytes()?)?;
 
-        Indexes::update(&mut tx, None, (&pk, &value))?;
+        Indexes::update(&mut tx, &pk, None, &value)?;
 
         tx.commit().map_err(Error::Backend)
     }
@@ -97,7 +97,7 @@ where
 
         store.remove(key.borrow().encode())?;
 
-        Indexes::remove(&mut tx, (&record.key(), &record))?;
+        Indexes::remove(&mut tx, &record.key(), &record)?;
 
         tx.commit().map_err(Error::Backend)
     }
@@ -136,6 +136,7 @@ where
     pub fn with_index<Idx>(self) -> CollectionBuilder<DB, Record, Cons<Idx, Indexes>>
     where
         Idx: Index<Record>,
+        for<'ik, 'pk> Idx::Kind<'ik>: IndexKind<Idx::Key<'ik>, Record::Key<'pk>>
     {
         assert!(
             !Indexes::has_index(Idx::NAME),
