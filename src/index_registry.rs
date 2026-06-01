@@ -12,10 +12,10 @@ pub struct Cons<Head, Tail>(PhantomData<(Head, Tail)>);
 
 /// IndexRegistry is a recursive HList trait to allow defining multiple indexes as generic types.
 pub trait IndexRegistry<T: Entity> {
-    fn update<'a, 'b, DB: MultiStoreWriteHandle>(
+    fn update<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
         pk: &T::Key<'a>,
-        old: Option<&'b T>,
+        old: Option<&T>,
         new: &'a T,
     ) -> Result<(), Error>;
 
@@ -32,10 +32,10 @@ impl<T> IndexRegistry<T> for Nil
 where
     T: Entity,
 {
-    fn update<'a, 'b, DB: MultiStoreWriteHandle>(
+    fn update<'a, DB: MultiStoreWriteHandle>(
         _db: &mut DB,
         _pk: &T::Key<'a>,
-        _old: Option<&'b T>,
+        _old: Option<&T>,
         _new: &'a T,
     ) -> Result<(), Error> {
         Ok(())
@@ -61,10 +61,10 @@ where
     Tail: IndexRegistry<T>,
     for<'ik, 'pk> Head::Kind<'ik>: IndexKind<Head::Key<'ik>, T::Key<'pk>>,
 {
-    fn update<'a, 'b, DB: MultiStoreWriteHandle>(
+    fn update<'a, DB: MultiStoreWriteHandle>(
         db: &mut DB,
         pk: &T::Key<'a>,
-        old: Option<&'b T>,
+        old: Option<&T>,
         new: &'a T,
     ) -> Result<(), Error> {
         Head::update(db, pk, old, new)?;
@@ -294,8 +294,7 @@ mod tests {
             (
                 &|s| {
                     <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::update(
-                        s,
-                        &pk, None, &record,
+                        s, &pk, None, &record,
                     )
                 },
                 &["index_a", "index_b"],
@@ -304,8 +303,7 @@ mod tests {
             (
                 &|s| {
                     <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<Record>>::update(
-                        s,
-                        &pk, None, &record,
+                        s, &pk, None, &record,
                     )
                 },
                 &[],
@@ -337,8 +335,7 @@ mod tests {
             (
                 &|s| {
                     <Cons<IndexA, Cons<IndexB, Nil>> as IndexRegistry<Record>>::remove(
-                        s,
-                        &pk, &record,
+                        s, &pk, &record,
                     )
                 },
                 &["index_a", "index_b"],
@@ -347,8 +344,7 @@ mod tests {
             (
                 &|s| {
                     <Cons<FailIndex, Cons<IndexA, Nil>> as IndexRegistry<Record>>::remove(
-                        s,
-                        &pk, &record,
+                        s, &pk, &record,
                     )
                 },
                 &[],

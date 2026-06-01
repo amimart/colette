@@ -92,7 +92,7 @@ where
         self
     }
 
-    pub fn after(mut self, cursor: StoreKey<'a, 'a , Idx, Record::Key<'a>, Record>) -> Self {
+    pub fn after(mut self, cursor: StoreKey<'a, 'a, Idx, Record::Key<'a>, Record>) -> Self {
         self.after = Some(cursor);
         self
     }

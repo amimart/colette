@@ -1,11 +1,13 @@
-use std::borrow::Borrow;
 use crate::entity::Entity;
 use crate::error::Error;
 use crate::index::{Index, IndexKind};
 use crate::index_registry::{Cons, ContainsIndex, IndexRegistry, Nil};
 use crate::key::Key;
 use crate::scan::IndexScan;
-use crate::store::{MultiStore, MultiStoreReadHandle, MultiStoreWriteHandle, ReadKVStore, WriteKVStore};
+use crate::store::{
+    MultiStore, MultiStoreReadHandle, MultiStoreWriteHandle, ReadKVStore, WriteKVStore,
+};
+use std::borrow::Borrow;
 use std::marker::PhantomData;
 
 pub struct Collection<DB, Record, Indexes>
@@ -51,16 +53,20 @@ where
 
         store.set(&enc_pk, &value.to_bytes()?)?;
 
-        Indexes::update(&mut tx, &pk, None, &value)?;
+        Indexes::update(&mut tx, &pk, None, value)?;
 
         tx.commit().map_err(Error::Backend)
     }
 
-    pub fn get<'a>(&self, key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>) -> Result<Option<Record>, Error>
+    pub fn get<'a>(
+        &self,
+        key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>,
+    ) -> Result<Option<Record>, Error>
     where
         Record: 'a,
     {
-        self.db.read(self.name)?
+        self.db
+            .read(self.name)?
             .open_store(Self::MAIN_STORE)?
             .get(key.borrow().encode())?
             .map(|bytes| Record::from_bytes(&bytes).map_err(Error::Codec))
@@ -75,14 +81,14 @@ where
         let mut tx = self.db.write(self.name)?;
         let mut store = tx.open_store(Self::MAIN_STORE)?;
 
-        let old = store.get(&enc_pk)?
-            .map(|bytes|
-                Record::from_bytes(&bytes).map_err(Error::Codec)
-            ).transpose()?;
+        let old = store
+            .get(&enc_pk)?
+            .map(|bytes| Record::from_bytes(&bytes).map_err(Error::Codec))
+            .transpose()?;
 
-    store.set(&enc_pk, &value.to_bytes()?)?;
+        store.set(&enc_pk, &value.to_bytes()?)?;
 
-        Indexes::update(&mut tx, &pk, old.as_ref(), &value)?;
+        Indexes::update(&mut tx, &pk, old.as_ref(), value)?;
 
         tx.commit().map_err(Error::Backend)
     }
@@ -91,7 +97,10 @@ where
         Ok(())
     }
 
-    pub fn remove<'a>(&self, key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>) -> Result<(), Error>
+    pub fn remove<'a>(
+        &self,
+        key: impl Borrow<<Record::Key<'a> as Key>::OwnedKey>,
+    ) -> Result<(), Error>
     where
         Record: 'a,
     {
@@ -101,10 +110,10 @@ where
         let mut tx = self.db.write(self.name)?;
         let mut store = tx.open_store(Self::MAIN_STORE)?;
 
-        let record = store.get(enc_pk)?
-            .map(|bytes|
-                Record::from_bytes(&bytes).map_err(Error::Codec)
-            ).transpose()?;
+        let record = store
+            .get(enc_pk)?
+            .map(|bytes| Record::from_bytes(&bytes).map_err(Error::Codec))
+            .transpose()?;
 
         let record = match record {
             Some(record) => record,
@@ -152,7 +161,7 @@ where
     pub fn with_index<Idx>(self) -> CollectionBuilder<DB, Record, Cons<Idx, Indexes>>
     where
         Idx: Index<Record>,
-        for<'ik, 'pk> Idx::Kind<'ik>: IndexKind<Idx::Key<'ik>, Record::Key<'pk>>
+        for<'ik, 'pk> Idx::Kind<'ik>: IndexKind<Idx::Key<'ik>, Record::Key<'pk>>,
     {
         assert!(
             !Indexes::has_index(Idx::NAME),
