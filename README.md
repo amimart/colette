@@ -64,10 +64,10 @@ pub struct Download {
     size: u64,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct InfoHash([u8; 20]);
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Status {
     Queued,
     Submitted,
