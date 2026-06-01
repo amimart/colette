@@ -503,5 +503,123 @@ mod tests {
         assert_eq!(log.sets[0].0, enc_pk, "set key must be the encoded primary key");
         assert_eq!(log.sets[0].1, enc_val, "set value must be to_bytes() output");
     }
+
+    // ── save ──────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn save() {
+        let enc_pk = 1u32.encode().to_vec();
+        let enc_val = TestRecord { id: 1 }.to_bytes().unwrap();
+
+        let existing_db =
+            || MockDb::new().with_data("__main", enc_pk.clone(), enc_val.clone());
+
+        macro_rules! run {
+            ($db:expr) => {{
+                let db: MockDb = $db;
+                let log = db.log();
+                let col = Collection::<_, TestRecord, SpyRegistry>::new("col", db);
+                let result = col.save(TestRecord { id: 1 });
+                (result, log)
+            }};
+        }
+
+        struct Case {
+            name: &'static str,
+            db: MockDb,
+            registry_fails: bool,
+            expect_result: fn(&Result<(), Error>),
+            expect_opens: &'static [&'static str],
+            expect_sets: usize,
+            expect_committed: bool,
+            expect_registry_called: bool,
+        }
+
+        let cases = vec![
+            Case {
+                name: "save when record does not exist",
+                db: MockDb::new(),
+                registry_fails: false,
+                expect_result: |r| assert!(r.is_ok()),
+                expect_opens: &["__main"],
+                expect_sets: 1,
+                expect_committed: true,
+                expect_registry_called: true,
+            },
+            Case {
+                name: "overwrites when record already exists",
+                db: existing_db(),
+                registry_fails: false,
+                expect_result: |r| assert!(r.is_ok()),
+                expect_opens: &["__main"],
+                expect_sets: 1,
+                expect_committed: true,
+                expect_registry_called: true,
+            },
+            Case {
+                name: "propagates backend error from write()",
+                db: MockDb::new().with_write_err(|| backend_error("write failed")),
+                registry_fails: false,
+                expect_result: |r| assert!(matches!(r, Err(Error::Backend(_)))),
+                expect_opens: &[],
+                expect_sets: 0,
+                expect_committed: false,
+                expect_registry_called: false,
+            },
+            Case {
+                name: "propagates backend error from commit()",
+                db: existing_db().with_commit_err(|| backend_error("commit failed")),
+                registry_fails: false,
+                expect_result: |r| assert!(matches!(r, Err(Error::Backend(_)))),
+                expect_opens: &["__main"],
+                expect_sets: 1,
+                expect_committed: true,
+                expect_registry_called: true,
+            },
+            Case {
+                // from_bytes is called on any stored value before set — codec errors must surface
+                name: "propagates codec error from corrupted stored bytes",
+                db: MockDb::new().with_data("__main", enc_pk.clone(), vec![0x01]),
+                registry_fails: false,
+                expect_result: |r| assert!(matches!(r, Err(Error::Codec(_)))),
+                expect_opens: &["__main"],
+                expect_sets: 0,
+                expect_committed: false,
+                expect_registry_called: false,
+            },
+            Case {
+                // set is called before the registry; commit is skipped on registry error
+                name: "propagates registry error",
+                db: existing_db(),
+                registry_fails: true,
+                expect_result: |r| assert!(matches!(r, Err(Error::Unexpected(_)))),
+                expect_opens: &["__main"],
+                expect_sets: 1,
+                expect_committed: false,
+                expect_registry_called: true,
+            },
+        ];
+
+        for c in cases {
+            SpyRegistry::reset();
+            SpyRegistry::set_fail(c.registry_fails);
+            let (result, log) = run!(c.db);
+            let log = log.borrow();
+
+            (c.expect_result)(&result);
+            assert_eq!(log.opens.as_slice(), c.expect_opens, "[{}] opens", c.name);
+            assert_eq!(log.sets.len(), c.expect_sets, "[{}] sets count", c.name);
+            assert_eq!(log.committed, c.expect_committed, "[{}] committed", c.name);
+            assert_eq!(SpyRegistry::was_update_called(), c.expect_registry_called, "[{}] registry called", c.name);
+        }
+
+        // Verify the exact bytes written to the main store
+        SpyRegistry::reset();
+        let (result, log) = run!(MockDb::new());
+        assert!(result.is_ok());
+        let log = log.borrow();
+        assert_eq!(log.sets[0].0, enc_pk, "set key must be the encoded primary key");
+        assert_eq!(log.sets[0].1, enc_val, "set value must be to_bytes() output");
+    }
 }
 
