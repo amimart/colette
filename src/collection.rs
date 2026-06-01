@@ -86,6 +86,10 @@ where
             .map(|bytes| Record::from_bytes(&bytes).map_err(Error::Codec))
             .transpose()?;
 
+        if old.is_none() {
+            Err(Error::NotFound(format!("{:?}", pk)))?
+        }
+
         store.set(&enc_pk, &value.to_bytes()?)?;
 
         Indexes::update(&mut tx, &pk, old.as_ref(), value)?;
