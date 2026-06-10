@@ -4,6 +4,8 @@ use crate::scan::{Direction, ScanRange};
 pub trait MultiStore {
     type ReadHandle: MultiStoreReadHandle;
     type WriteHandle: MultiStoreWriteHandle;
+    
+    fn prepare(&self, namespace: &'static str, stores: impl IntoIterator<Item = &'static str>) -> Result<(), BackendError>;
 
     fn read(&self, namespace: &'static str) -> Result<Self::ReadHandle, BackendError>;
 
