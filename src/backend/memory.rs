@@ -1,16 +1,21 @@
 use std::collections::BTreeMap;
+use std::sync::{Arc, RwLock};
 use crate::error::BackendError;
 use crate::scan::{Direction, ScanRange};
 use crate::store::{MultiStore, MultiStoreReadHandle, MultiStoreWriteHandle, ReadKVStore, ReadWriteKVStore, WriteKVStore};
 
 pub struct InMemoryMultiStore {
-    stores: BTreeMap<String, InMemoryStore>,
+    stores: Arc<RwLock<BTreeMap<&'static str, Arc<RwLock<Arc<NamespacedStores>>>>>>,
 }
+
+pub type NamespacedStores = BTreeMap<&'static str, Arc<KVStore>>;
+
+pub type KVStore = BTreeMap<Vec<u8>, Vec<u8>>;
 
 impl InMemoryMultiStore {
     pub fn new() -> Self {
         Self {
-            stores: BTreeMap::new(),
+            stores: Arc::from(RwLock::from(BTreeMap::new())),
         }
     }
 }
@@ -19,48 +24,100 @@ impl MultiStore for InMemoryMultiStore {
     type ReadHandle = InMemoryReadHandle;
     type WriteHandle = InMemoryWriteHandle;
 
-    fn read(&self, namespace: &str) -> Result<Self::ReadHandle, BackendError> {
-        todo!()
+    fn prepare(&self, namespace: &'static str, stores: impl IntoIterator<Item=&'static str>) -> Result<(), BackendError> {
+        let mut nstores = NamespacedStores::new();
+        stores.into_iter().for_each(|store| {
+            nstores.insert(store, Arc::new(KVStore::new()));
+        });
+
+        let mut db = self.stores.write().unwrap();
+        db.insert(namespace, Arc::from(RwLock::from(Arc::from(nstores))));
+
+        Ok(())
     }
 
-    fn write(&self, namespace: &str) -> Result<Self::WriteHandle, BackendError> {
-        todo!()
+    fn read(&self, namespace: &'static str) -> Result<Self::ReadHandle, BackendError> {
+        let db = self.stores.read().unwrap();
+        let nstores = db.get(namespace).unwrap();
+        let snapshot = nstores.read().unwrap().clone();
+
+        Ok(InMemoryReadHandle { stores: snapshot })
+    }
+
+    fn write(&self, namespace: &'static str) -> Result<Self::WriteHandle, BackendError> {
+        let db = self.stores.read().unwrap();
+        let nstores = db.get(namespace).unwrap();
+        let snapshot = nstores.read().unwrap().clone();
+
+        Ok(
+            InMemoryWriteHandle {
+                namespace: nstores.clone(),
+                staged: (*snapshot).clone(),
+            }
+        )
     }
 }
 
 pub struct InMemoryReadHandle {
+    stores: Arc<NamespacedStores>,
 }
 
 impl MultiStoreReadHandle for InMemoryReadHandle {
-    type Store = InMemoryStore;
+    type Store = InMemoryReadStore;
 
-    fn open_store(&self, name: &str) -> Result<Self::Store, BackendError> {
+    fn open_store(&self, name: &'static str) -> Result<Self::Store, BackendError> {
+        Ok(InMemoryReadStore {
+            store: self.stores.get(name).unwrap().clone(),
+        })
+    }
+}
+
+pub struct InMemoryReadStore {
+    store: Arc<KVStore>,
+}
+
+impl ReadKVStore for InMemoryReadStore {
+    type Iter = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>;
+
+    fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError> {
+        todo!()
+    }
+
+    fn scan(&self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError> {
         todo!()
     }
 }
 
 pub struct InMemoryWriteHandle {
+    namespace: Arc<RwLock<Arc<NamespacedStores>>>,
+    staged: NamespacedStores,
 }
 
 impl MultiStoreWriteHandle for InMemoryWriteHandle {
-    type Store = InMemoryStore;
+    type Store<'a> = InMemoryWriteStore<'a>;
 
-    fn open_store(&mut self, name: &str) -> Result<Self::Store, BackendError> {
-        todo!()
+    fn open_store(&mut self, name: &'static str) -> Result<Self::Store<'_>, BackendError> {
+        Ok(
+            InMemoryWriteStore{
+                store: self.staged.get(name).unwrap(),
+            }
+        )
     }
 
     fn commit(self) -> Result<(), BackendError> {
-        todo!()
+        let mut stores = self.namespace.write().unwrap();
+        *stores = Arc::new(self.staged);
+        Ok(())
     }
 }
 
-pub struct InMemoryStore {
-    data: BTreeMap<Vec<u8>, Vec<u8>>,
+pub struct InMemoryWriteStore<'a> {
+    store: &'a KVStore,
 }
 
-impl ReadWriteKVStore for InMemoryStore {}
+impl<'a> ReadWriteKVStore<'a> for InMemoryWriteStore<'a> {}
 
-impl WriteKVStore for InMemoryStore {
+impl<'a> WriteKVStore<'a> for InMemoryWriteStore<'a> {
     fn set(&mut self, key: impl AsRef<[u8]>, value: impl AsRef<[u8]>) -> Result<(), BackendError> {
         todo!()
     }
@@ -70,7 +127,7 @@ impl WriteKVStore for InMemoryStore {
     }
 }
 
-impl ReadKVStore for InMemoryStore {
+impl ReadKVStore for InMemoryWriteStore<'_> {
     type Iter = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>;
 
     fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError> {
