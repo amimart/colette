@@ -9,7 +9,7 @@ pub struct InMemoryMultiStore {
 }
 
 pub type NamespacedStores = BTreeMap<&'static str, Arc<KVStore>>;
-
+pub type StagedStores = BTreeMap<&'static str, KVStore>;
 pub type KVStore = BTreeMap<Vec<u8>, Vec<u8>>;
 
 impl InMemoryMultiStore {
@@ -48,11 +48,14 @@ impl MultiStore for InMemoryMultiStore {
         let db = self.stores.read().unwrap();
         let nstores = db.get(namespace).unwrap();
         let snapshot = nstores.read().unwrap().clone();
+        let staged = snapshot.iter()
+            .map(|(n, s)| (*n, s.as_ref().clone()))
+            .collect();
 
         Ok(
             InMemoryWriteHandle {
                 namespace: nstores.clone(),
-                staged: (*snapshot).clone(),
+                staged,
             }
         )
     }
@@ -77,20 +80,22 @@ pub struct InMemoryReadStore {
 }
 
 impl ReadKVStore for InMemoryReadStore {
-    type Iter = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>;
+    type Iter<'a> = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>
+    where
+        Self: 'a;
 
     fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError> {
         todo!()
     }
 
-    fn scan(&self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError> {
+    fn scan(&self, range: ScanRange, direction: Direction) -> Result<Self::Iter<'_>, BackendError> {
         todo!()
     }
 }
 
 pub struct InMemoryWriteHandle {
     namespace: Arc<RwLock<Arc<NamespacedStores>>>,
-    staged: NamespacedStores,
+    staged: StagedStores,
 }
 
 impl MultiStoreWriteHandle for InMemoryWriteHandle {
@@ -99,20 +104,24 @@ impl MultiStoreWriteHandle for InMemoryWriteHandle {
     fn open_store(&mut self, name: &'static str) -> Result<Self::Store<'_>, BackendError> {
         Ok(
             InMemoryWriteStore{
-                store: self.staged.get(name).unwrap(),
+                store: self.staged.get_mut(name).unwrap(),
             }
         )
     }
 
     fn commit(self) -> Result<(), BackendError> {
+        let new_stores = self.staged.into_iter()
+            .map(|(n, s)| (n, Arc::new(s)))
+            .collect();
+
         let mut stores = self.namespace.write().unwrap();
-        *stores = Arc::new(self.staged);
+        *stores = Arc::new(new_stores);
         Ok(())
     }
 }
 
 pub struct InMemoryWriteStore<'a> {
-    store: &'a KVStore,
+    store: &'a mut KVStore,
 }
 
 impl<'a> ReadWriteKVStore<'a> for InMemoryWriteStore<'a> {}
@@ -128,13 +137,15 @@ impl<'a> WriteKVStore<'a> for InMemoryWriteStore<'a> {
 }
 
 impl ReadKVStore for InMemoryWriteStore<'_> {
-    type Iter = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>;
+    type Iter<'a> = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>
+    where
+        Self: 'a;
 
     fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError> {
         todo!()
     }
 
-    fn scan(&self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError> {
+    fn scan(&self, range: ScanRange, direction: Direction) -> Result<Self::Iter<'_>, BackendError> {
         todo!()
     }
 }
