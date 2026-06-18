@@ -24,16 +24,18 @@ pub trait MultiStoreReadHandle {
 
 /// A MultiStoreWriteHandle provides atomic writes across all stores opened from it.
 pub trait MultiStoreWriteHandle {
-    type Store: ReadWriteKVStore;
+    type Store<'a>: ReadWriteKVStore<'a>
+    where
+        Self: 'a;
 
-    fn open_store(&mut self, name: &'static str) -> Result<Self::Store, BackendError>;
+    fn open_store(&mut self, name: &'static str) -> Result<Self::Store<'_>, BackendError>;
 
     fn commit(self) -> Result<(), BackendError>;
 }
 
-pub trait ReadWriteKVStore: ReadKVStore + WriteKVStore {}
+pub trait ReadWriteKVStore<'a>: ReadKVStore + WriteKVStore<'a> {}
 
-pub trait WriteKVStore {
+pub trait WriteKVStore<'a> {
     fn set(&mut self, key: impl AsRef<[u8]>, value: impl AsRef<[u8]>) -> Result<(), BackendError>;
 
     fn remove(&mut self, key: impl AsRef<[u8]>) -> Result<(), BackendError>;
