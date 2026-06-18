@@ -30,7 +30,7 @@ pub trait Index<Record: Entity> {
     {
         let new_skey = Self::Kind::store_key(Self::key(new), pk);
 
-        let mut store = None;
+        let mut store = db.open_store(Self::NAME)?;
         if let Some(entity) = old {
             let old_skey = Self::Kind::store_key(Self::key(entity), pk);
 
@@ -38,12 +38,8 @@ pub trait Index<Record: Entity> {
                 return Ok(());
             }
 
-            store
-                .get_or_insert(db.open_store(Self::NAME)?)
-                .remove(old_skey.encode())?;
+            store.remove(old_skey.encode())?;
         }
-
-        let mut store = store.unwrap_or(db.open_store(Self::NAME)?);
 
         let skey = new_skey.encode();
         if store.get(&skey)?.is_some() {
