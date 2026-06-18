@@ -1,5 +1,5 @@
 use crate::entity::Entity;
-use crate::error::Error;
+use crate::error::{BackendError, Error};
 use crate::store::ReadKVStore;
 use std::marker::PhantomData;
 
@@ -11,23 +11,24 @@ pub struct IndexEntry<Record> {
 #[allow(dead_code)]
 pub struct Cursor(Vec<u8>);
 
-pub struct IndexIterator<Store, Record>
+pub struct IndexIterator<'a, Store, Record>
 where
     Store: ReadKVStore,
     Record: Entity,
+    Store: 'a,
 {
-    inner: Store::Iter,
+    inner: Store::Iter<'a>,
     primary_store: Store,
 
     _marker: PhantomData<Record>,
 }
 
-impl<Store, Record> IndexIterator<Store, Record>
+impl<'a, Store, Record> IndexIterator<'a, Store, Record>
 where
     Store: ReadKVStore,
     Record: Entity,
 {
-    pub fn new(inner: Store::Iter, primary_store: Store) -> Self {
+    pub fn new(inner: Store::Iter<'a>, primary_store: Store) -> Self {
         Self {
             inner,
             primary_store,
@@ -37,7 +38,7 @@ where
     }
 }
 
-impl<Store, Record> Iterator for IndexIterator<Store, Record>
+impl<'a, Store, Record> Iterator for IndexIterator<'a, Store, Record>
 where
     Store: ReadKVStore,
     Record: Entity,
