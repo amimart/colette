@@ -97,7 +97,8 @@ where
         self
     }
 
-    pub fn iter(self) -> Result<IndexIterator<ReadHandle::Store, Record>, Error> {
+    pub fn iter(self) -> Result<IndexIterator<ReadHandle::Store, Record>, Error>
+    {
         Ok(IndexIterator::new(
             self.read_handle
                 .open_store(Idx::NAME)?

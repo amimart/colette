@@ -42,11 +42,9 @@ pub trait WriteKVStore<'a> {
 }
 
 pub trait ReadKVStore {
-    type Iter<'a>: Iterator<Item = Result<(Vec<u8>, Vec<u8>), BackendError>>
-    where
-        Self: 'a;
+    type Iter: Iterator<Item = Result<(Vec<u8>, Vec<u8>), BackendError>>;
 
     fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError>;
 
-    fn scan(&self, range: ScanRange, direction: Direction) -> Result<Self::Iter<'_>, BackendError>;
+    fn scan(self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError>;
 }

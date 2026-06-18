@@ -199,11 +199,11 @@ mod tests {
         fn get(&self, _: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError> {
             Ok(None)
         }
-        fn scan(&self, _: ScanRange, _: Direction) -> Result<Self::Iter, BackendError> {
+        fn scan(self, _: ScanRange, _: Direction) -> Result<Self::Iter, BackendError> {
             Ok(std::iter::empty())
         }
     }
-    impl WriteKVStore for NoopStore {
+    impl<'a> WriteKVStore<'a> for NoopStore {
         fn set(&mut self, _: impl AsRef<[u8]>, _: impl AsRef<[u8]>) -> Result<(), BackendError> {
             Ok(())
         }
@@ -211,7 +211,7 @@ mod tests {
             Ok(())
         }
     }
-    impl ReadWriteKVStore for NoopStore {}
+    impl<'a> ReadWriteKVStore<'a> for NoopStore {}
 
     struct Spy(Vec<String>);
 
@@ -225,7 +225,7 @@ mod tests {
     }
 
     impl MultiStoreWriteHandle for Spy {
-        type Store = NoopStore;
+        type Store<'a> = NoopStore;
         fn open_store(&mut self, name: &str) -> Result<NoopStore, BackendError> {
             self.0.push(name.to_string());
             Ok(NoopStore)

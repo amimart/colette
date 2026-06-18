@@ -80,15 +80,13 @@ pub struct InMemoryReadStore {
 }
 
 impl ReadKVStore for InMemoryReadStore {
-    type Iter<'a> = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>
-    where
-        Self: 'a;
+    type Iter = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>;
 
     fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError> {
         todo!()
     }
 
-    fn scan(&self, range: ScanRange, direction: Direction) -> Result<Self::Iter<'_>, BackendError> {
+    fn scan(self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError> {
         todo!()
     }
 }
@@ -137,15 +135,13 @@ impl<'a> WriteKVStore<'a> for InMemoryWriteStore<'a> {
 }
 
 impl ReadKVStore for InMemoryWriteStore<'_> {
-    type Iter<'a> = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>
-    where
-        Self: 'a;
+    type Iter = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>;
 
     fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError> {
         todo!()
     }
 
-    fn scan(&self, range: ScanRange, direction: Direction) -> Result<Self::Iter<'_>, BackendError> {
+    fn scan(self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError> {
         todo!()
     }
 }

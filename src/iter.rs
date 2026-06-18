@@ -11,24 +11,23 @@ pub struct IndexEntry<Record> {
 #[allow(dead_code)]
 pub struct Cursor(Vec<u8>);
 
-pub struct IndexIterator<'a, Store, Record>
+pub struct IndexIterator<Store, Record>
 where
     Store: ReadKVStore,
     Record: Entity,
-    Store: 'a,
 {
-    inner: Store::Iter<'a>,
+    inner: Store::Iter,
     primary_store: Store,
 
     _marker: PhantomData<Record>,
 }
 
-impl<'a, Store, Record> IndexIterator<'a, Store, Record>
+impl<Store, Record> IndexIterator<Store, Record>
 where
     Store: ReadKVStore,
     Record: Entity,
 {
-    pub fn new(inner: Store::Iter<'a>, primary_store: Store) -> Self {
+    pub fn new(inner: Store::Iter, primary_store: Store) -> Self {
         Self {
             inner,
             primary_store,
@@ -38,7 +37,7 @@ where
     }
 }
 
-impl<'a, Store, Record> Iterator for IndexIterator<'a, Store, Record>
+impl<Store, Record> Iterator for IndexIterator<Store, Record>
 where
     Store: ReadKVStore,
     Record: Entity,
