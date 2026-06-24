@@ -6,7 +6,7 @@ use crate::key::Key;
 use crate::prefix::{Prefix, Prefixable};
 use crate::store::{MultiStoreReadHandle, ReadKVStore};
 use std::marker::PhantomData;
-use std::ops::{Bound, Range};
+use std::ops::{Bound, Range, RangeBounds};
 
 pub enum Direction {
     LeftToRight,
@@ -38,6 +38,28 @@ pub enum ScanRange {
         left: Bound<Vec<u8>>,
         right: Bound<Vec<u8>>,
     },
+}
+
+impl RangeBounds<Vec<u8>> for ScanRange {
+    fn start_bound(&self) -> Bound<&Vec<u8>> {
+        match self {
+            ScanRange::All => Bound::Unbounded,
+            ScanRange::Prefix(p) => Bound::Included(p),
+            ScanRange::Range { left, right } => {
+                left.as_ref()
+            }
+        }
+    }
+
+    fn end_bound(&self) -> Bound<&Vec<u8>> {
+        match self {
+            ScanRange::All => Bound::Unbounded,
+            ScanRange::Prefix(p) => Bound::Included(p),
+            ScanRange::Range { left, right } => {
+                right.as_ref()
+            }
+        }
+    }
 }
 
 pub struct IndexScan<'a, ReadHandle, Record, Idx>
