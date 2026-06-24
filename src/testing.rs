@@ -64,12 +64,12 @@ impl ReadKVStore for MockStore {
         Ok(self.data.get(&key).cloned())
     }
 
-    fn scan(&self, _: ScanRange, _: Direction) -> Result<Self::Iter, BackendError> {
+    fn scan(self, _: ScanRange, _: Direction) -> Result<Self::Iter, BackendError> {
         Ok(std::iter::empty())
     }
 }
 
-impl WriteKVStore for MockStore {
+impl<'a> WriteKVStore<'a> for MockStore {
     fn set(&mut self, key: impl AsRef<[u8]>, value: impl AsRef<[u8]>) -> Result<(), BackendError> {
         self.log
             .borrow_mut()
@@ -84,7 +84,7 @@ impl WriteKVStore for MockStore {
     }
 }
 
-impl ReadWriteKVStore for MockStore {}
+impl<'a> ReadWriteKVStore<'a> for MockStore {}
 
 // ── MockWriteHandle ───────────────────────────────────────────────────────────
 
@@ -99,9 +99,9 @@ pub struct MockWriteHandle {
 }
 
 impl MultiStoreWriteHandle for MockWriteHandle {
-    type Store = MockStore;
+    type Store<'a> = MockStore;
 
-    fn open_store(&mut self, name: &str) -> Result<MockStore, BackendError> {
+    fn open_store(&mut self, name: &'static str) -> Result<MockStore, BackendError> {
         self.log.borrow_mut().opens.push(name.to_string());
         let data = self.store_data.get(name).cloned().unwrap_or_default();
         Ok(MockStore {
@@ -132,7 +132,7 @@ pub struct MockReadHandle {
 impl MultiStoreReadHandle for MockReadHandle {
     type Store = MockStore;
 
-    fn open_store(&self, name: &str) -> Result<MockStore, BackendError> {
+    fn open_store(&self, name: &'static str) -> Result<MockStore, BackendError> {
         self.log.borrow_mut().opens.push(name.to_string());
         let data = self.store_data.get(name).cloned().unwrap_or_default();
         Ok(MockStore {
@@ -229,7 +229,15 @@ impl MultiStore for MockDb {
     type ReadHandle = MockReadHandle;
     type WriteHandle = MockWriteHandle;
 
-    fn read(&self, _: &str) -> Result<MockReadHandle, BackendError> {
+    fn prepare(
+        &self,
+        _namespace: &'static str,
+        _stores: impl IntoIterator<Item = &'static str>,
+    ) -> Result<(), BackendError> {
+        Ok(())
+    }
+
+    fn read(&self, _: &'static str) -> Result<MockReadHandle, BackendError> {
         if let Some(make_err) = self.read_err {
             return Err(make_err());
         }
@@ -239,7 +247,7 @@ impl MultiStore for MockDb {
         })
     }
 
-    fn write(&self, _: &str) -> Result<MockWriteHandle, BackendError> {
+    fn write(&self, _: &'static str) -> Result<MockWriteHandle, BackendError> {
         if let Some(make_err) = self.write_err {
             return Err(make_err());
         }
