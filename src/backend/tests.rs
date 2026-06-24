@@ -9,6 +9,7 @@ pub fn run_multistore_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     committed_writes_are_visible(&make_db);
     write_handle_reads_include_uncommitted_writes(&make_db);
     read_handles_keep_stable_snapshots(&make_db);
+    multi_store_commits_are_atomic(&make_db);
 }
 
 fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
@@ -136,6 +137,47 @@ fn read_handles_keep_stable_snapshots<DB: MultiStore>(make_db: &impl Fn() -> DB)
     assert_eq!(
         get(&db, "snapshots", "items", b"k"),
         Some(b"after".to_vec())
+    );
+}
+
+fn multi_store_commits_are_atomic<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let db = make_db();
+    db.prepare("atomic", ["primary", "index"]).unwrap();
+
+    let before = db.read("atomic").unwrap();
+
+    let mut write = db.write("atomic").unwrap();
+    {
+        let mut primary = write.open_store("primary").unwrap();
+        primary.set(b"id:1", b"record").unwrap();
+    }
+    {
+        let mut index = write.open_store("index").unwrap();
+        index.set(b"name:record", b"id:1").unwrap();
+    }
+
+    assert_eq!(
+        before.open_store("primary").unwrap().get(b"id:1").unwrap(),
+        None
+    );
+    assert_eq!(
+        before
+            .open_store("index")
+            .unwrap()
+            .get(b"name:record")
+            .unwrap(),
+        None
+    );
+
+    write.commit().unwrap();
+
+    assert_eq!(
+        get(&db, "atomic", "primary", b"id:1"),
+        Some(b"record".to_vec())
+    );
+    assert_eq!(
+        get(&db, "atomic", "index", b"name:record"),
+        Some(b"id:1".to_vec())
     );
 }
 
