@@ -300,6 +300,36 @@ fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
         Direction::RightToLeft,
         vec![6, 5, 4, 3],
     );
+    assert_scan(
+        &db,
+        ScanRange::Prefix(v(&[])),
+        Direction::LeftToRight,
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Prefix(v(&[0])),
+        Direction::LeftToRight,
+        vec![1, 2, 3],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Prefix(v(&[1])),
+        Direction::RightToLeft,
+        vec![5, 4],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Prefix(v(&[1, 0])),
+        Direction::LeftToRight,
+        vec![5],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Prefix(v(&[3])),
+        Direction::LeftToRight,
+        vec![],
+    );
 
     remove_and_commit(&db, "scans", "items", &[1, 0]);
     assert_scan(
