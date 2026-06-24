@@ -5,6 +5,7 @@ use crate::store::{
 pub fn run_multistore_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     basic_operations(&make_db);
     namespace_isolation(&make_db);
+    store_isolation(&make_db);
 }
 
 fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
@@ -51,6 +52,33 @@ fn namespace_isolation<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     assert_eq!(
         get(&db, "right", "items", b"same-key"),
         Some(b"right".to_vec())
+    );
+}
+
+fn store_isolation<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let db = make_db();
+    db.prepare("stores", ["primary", "index"]).unwrap();
+
+    {
+        let mut write = db.write("stores").unwrap();
+        {
+            let mut primary = write.open_store("primary").unwrap();
+            primary.set(b"same-key", b"primary").unwrap();
+        }
+        {
+            let mut index = write.open_store("index").unwrap();
+            index.set(b"same-key", b"index").unwrap();
+        }
+        write.commit().unwrap();
+    }
+
+    assert_eq!(
+        get(&db, "stores", "primary", b"same-key"),
+        Some(b"primary".to_vec())
+    );
+    assert_eq!(
+        get(&db, "stores", "index", b"same-key"),
+        Some(b"index".to_vec())
     );
 }
 
