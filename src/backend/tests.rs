@@ -4,6 +4,7 @@ use crate::store::{
 };
 use std::ops::Bound;
 
+#[allow(dead_code)]
 pub fn run_multistore_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     basic_operations(&make_db);
     namespace_isolation(&make_db);
@@ -15,7 +16,7 @@ pub fn run_multistore_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     scans(&make_db);
 }
 
-fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+pub(crate) fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     let db = make_db();
     db.prepare("basic", ["items"]).unwrap();
 
@@ -34,7 +35,7 @@ fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     assert_eq!(get(&db, "basic", "items", b"missing"), None);
 }
 
-fn namespace_isolation<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+pub(crate) fn namespace_isolation<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     let db = make_db();
     db.prepare("left", ["items"]).unwrap();
     db.prepare("right", ["items"]).unwrap();
@@ -62,7 +63,7 @@ fn namespace_isolation<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     );
 }
 
-fn store_isolation<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+pub(crate) fn store_isolation<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     let db = make_db();
     db.prepare("stores", ["primary", "index"]).unwrap();
 
@@ -89,7 +90,7 @@ fn store_isolation<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     );
 }
 
-fn committed_writes_are_visible<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+pub(crate) fn committed_writes_are_visible<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     let db = make_db();
     db.prepare("commits", ["items"]).unwrap();
 
@@ -106,7 +107,9 @@ fn committed_writes_are_visible<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     );
 }
 
-fn write_handle_reads_include_uncommitted_writes<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+pub(crate) fn write_handle_reads_include_uncommitted_writes<DB: MultiStore>(
+    make_db: &impl Fn() -> DB,
+) {
     let db = make_db();
     db.prepare("write-reads", ["items"]).unwrap();
 
@@ -119,7 +122,7 @@ fn write_handle_reads_include_uncommitted_writes<DB: MultiStore>(make_db: &impl 
     write.commit().unwrap();
 }
 
-fn read_handles_keep_stable_snapshots<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+pub(crate) fn read_handles_keep_stable_snapshots<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     let db = make_db();
     db.prepare("snapshots", ["items"]).unwrap();
 
@@ -143,7 +146,7 @@ fn read_handles_keep_stable_snapshots<DB: MultiStore>(make_db: &impl Fn() -> DB)
     );
 }
 
-fn multi_store_commits_are_atomic<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+pub(crate) fn multi_store_commits_are_atomic<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     let db = make_db();
     db.prepare("atomic", ["primary", "index"]).unwrap();
 
@@ -184,7 +187,7 @@ fn multi_store_commits_are_atomic<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     );
 }
 
-fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+pub(crate) fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     let db = make_db();
     db.prepare("scans", ["items"]).unwrap();
     commit_entries(&db, "scans", "items", &scan_entries());
