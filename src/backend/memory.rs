@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
+use std::vec::IntoIter;
 use crate::error::BackendError;
 use crate::scan::{Direction, ScanRange};
 use crate::store::{MultiStore, MultiStoreReadHandle, MultiStoreWriteHandle, ReadKVStore, ReadWriteKVStore, WriteKVStore};
@@ -80,14 +81,24 @@ pub struct InMemoryReadStore {
 }
 
 impl ReadKVStore for InMemoryReadStore {
-    type Iter = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>;
+    type Iter = IntoIter<Result<(Vec<u8>, Vec<u8>), BackendError>>;
 
     fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError> {
-        todo!()
+        Ok(self.store.get(key.as_ref()).cloned())
     }
 
     fn scan(self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError> {
-        todo!()
+        let scan: Vec<Result<(Vec<u8>, Vec<u8>), BackendError>> = match direction {
+            Direction::LeftToRight => self.store.range(range)
+                .map(|(k, v)| Ok((k.clone(), v.clone())))
+                .collect(),
+            Direction::RightToLeft => self.store.range(range)
+                .rev()
+                .map(|(k, v)| Ok((k.clone(), v.clone())))
+                .collect(),
+        };
+
+        Ok(scan.into_iter())
     }
 }
 
@@ -126,23 +137,35 @@ impl<'a> ReadWriteKVStore<'a> for InMemoryWriteStore<'a> {}
 
 impl<'a> WriteKVStore<'a> for InMemoryWriteStore<'a> {
     fn set(&mut self, key: impl AsRef<[u8]>, value: impl AsRef<[u8]>) -> Result<(), BackendError> {
-        todo!()
+        self.store.insert(key.as_ref().to_owned(), value.as_ref().to_owned());
+        Ok(())
     }
 
     fn remove(&mut self, key: impl AsRef<[u8]>) -> Result<(), BackendError> {
-        todo!()
+        self.store.remove(&key.as_ref().to_owned());
+        Ok(())
     }
 }
 
 impl ReadKVStore for InMemoryWriteStore<'_> {
-    type Iter = std::iter::Empty<Result<(Vec<u8>, Vec<u8>), BackendError>>;
+    type Iter = IntoIter<Result<(Vec<u8>, Vec<u8>), BackendError>>;
 
     fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError> {
-        todo!()
+        Ok(self.store.get(key.as_ref()).map(|v| v.to_owned()))
     }
 
     fn scan(self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError> {
-        todo!()
+        let scan: Vec<Result<(Vec<u8>, Vec<u8>), BackendError>> = match direction {
+            Direction::LeftToRight => self.store.range(range)
+                .map(|(k, v)| Ok((k.clone(), v.clone())))
+                .collect(),
+            Direction::RightToLeft => self.store.range(range)
+                .rev()
+                .map(|(k, v)| Ok((k.clone(), v.clone())))
+                .collect(),
+        };
+
+        Ok(scan.into_iter())
     }
 }
 
