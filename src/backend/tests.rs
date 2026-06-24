@@ -6,6 +6,7 @@ pub fn run_multistore_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     basic_operations(&make_db);
     namespace_isolation(&make_db);
     store_isolation(&make_db);
+    committed_writes_are_visible(&make_db);
 }
 
 fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
@@ -79,6 +80,23 @@ fn store_isolation<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     assert_eq!(
         get(&db, "stores", "index", b"same-key"),
         Some(b"index".to_vec())
+    );
+}
+
+fn committed_writes_are_visible<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let db = make_db();
+    db.prepare("commits", ["items"]).unwrap();
+
+    commit_entries(
+        &db,
+        "commits",
+        "items",
+        &[(b"k".to_vec(), b"committed".to_vec())],
+    );
+
+    assert_eq!(
+        get(&db, "commits", "items", b"k"),
+        Some(b"committed".to_vec())
     );
 }
 
