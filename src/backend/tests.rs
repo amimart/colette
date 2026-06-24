@@ -16,6 +16,56 @@ pub fn run_multistore_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     scans(&make_db);
 }
 
+macro_rules! multistore_contract_tests {
+    ($make_db:expr) => {
+        mod contract {
+            use super::*;
+
+            #[test]
+            fn basic_operations() {
+                $crate::backend::tests::basic_operations(&$make_db);
+            }
+
+            #[test]
+            fn namespace_isolation() {
+                $crate::backend::tests::namespace_isolation(&$make_db);
+            }
+
+            #[test]
+            fn store_isolation() {
+                $crate::backend::tests::store_isolation(&$make_db);
+            }
+
+            #[test]
+            fn committed_writes_are_visible() {
+                $crate::backend::tests::committed_writes_are_visible(&$make_db);
+            }
+
+            #[test]
+            fn write_handle_reads_include_uncommitted_writes() {
+                $crate::backend::tests::write_handle_reads_include_uncommitted_writes(&$make_db);
+            }
+
+            #[test]
+            fn read_handles_keep_stable_snapshots() {
+                $crate::backend::tests::read_handles_keep_stable_snapshots(&$make_db);
+            }
+
+            #[test]
+            fn multi_store_commits_are_atomic() {
+                $crate::backend::tests::multi_store_commits_are_atomic(&$make_db);
+            }
+
+            #[test]
+            fn scans() {
+                $crate::backend::tests::scans(&$make_db);
+            }
+        }
+    };
+}
+
+pub(crate) use multistore_contract_tests;
+
 pub(crate) fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     let db = make_db();
     db.prepare("basic", ["items"]).unwrap();

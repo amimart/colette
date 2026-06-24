@@ -193,53 +193,11 @@ impl ReadKVStore for InMemoryWriteStore<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::backend::tests as contract_tests;
+    use crate::backend::tests::multistore_contract_tests;
 
     fn make_db() -> InMemoryMultiStore {
         InMemoryMultiStore::new()
     }
 
-    mod contract {
-        use super::*;
-
-        #[test]
-        fn basic_operations() {
-            contract_tests::basic_operations(&make_db);
-        }
-
-        #[test]
-        fn namespace_isolation() {
-            contract_tests::namespace_isolation(&make_db);
-        }
-
-        #[test]
-        fn store_isolation() {
-            contract_tests::store_isolation(&make_db);
-        }
-
-        #[test]
-        fn committed_writes_are_visible() {
-            contract_tests::committed_writes_are_visible(&make_db);
-        }
-
-        #[test]
-        fn write_handle_reads_include_uncommitted_writes() {
-            contract_tests::write_handle_reads_include_uncommitted_writes(&make_db);
-        }
-
-        #[test]
-        fn read_handles_keep_stable_snapshots() {
-            contract_tests::read_handles_keep_stable_snapshots(&make_db);
-        }
-
-        #[test]
-        fn multi_store_commits_are_atomic() {
-            contract_tests::multi_store_commits_are_atomic(&make_db);
-        }
-
-        #[test]
-        fn scans() {
-            contract_tests::scans(&make_db);
-        }
-    }
+    multistore_contract_tests!(make_db);
 }
