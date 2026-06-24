@@ -1,6 +1,8 @@
+use crate::scan::{Direction, ScanRange};
 use crate::store::{
     MultiStore, MultiStoreReadHandle, MultiStoreWriteHandle, ReadKVStore, WriteKVStore,
 };
+use std::ops::Bound;
 
 pub fn run_multistore_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     basic_operations(&make_db);
@@ -10,6 +12,7 @@ pub fn run_multistore_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     write_handle_reads_include_uncommitted_writes(&make_db);
     read_handles_keep_stable_snapshots(&make_db);
     multi_store_commits_are_atomic(&make_db);
+    scans(&make_db);
 }
 
 fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
@@ -181,6 +184,150 @@ fn multi_store_commits_are_atomic<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     );
 }
 
+fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let db = make_db();
+    db.prepare("scans", ["items"]).unwrap();
+    commit_entries(&db, "scans", "items", &scan_entries());
+
+    assert_scan(
+        &db,
+        ScanRange::All,
+        Direction::LeftToRight,
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+    );
+    assert_scan(
+        &db,
+        ScanRange::All,
+        Direction::RightToLeft,
+        vec![8, 7, 6, 5, 4, 3, 2, 1, 0],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Range {
+            left: Bound::Included(v(&[1])),
+            right: Bound::Unbounded,
+        },
+        Direction::LeftToRight,
+        vec![4, 5, 6, 7, 8],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Range {
+            left: Bound::Excluded(v(&[1])),
+            right: Bound::Unbounded,
+        },
+        Direction::LeftToRight,
+        vec![5, 6, 7, 8],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Range {
+            left: Bound::Unbounded,
+            right: Bound::Included(v(&[1])),
+        },
+        Direction::LeftToRight,
+        vec![0, 1, 2, 3, 4],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Range {
+            left: Bound::Unbounded,
+            right: Bound::Excluded(v(&[1])),
+        },
+        Direction::LeftToRight,
+        vec![0, 1, 2, 3],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Range {
+            left: Bound::Included(v(&[0, 1])),
+            right: Bound::Included(v(&[2])),
+        },
+        Direction::LeftToRight,
+        vec![3, 4, 5, 6],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Range {
+            left: Bound::Included(v(&[0, 1])),
+            right: Bound::Excluded(v(&[2])),
+        },
+        Direction::LeftToRight,
+        vec![3, 4, 5],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Range {
+            left: Bound::Excluded(v(&[0, 1])),
+            right: Bound::Included(v(&[2])),
+        },
+        Direction::LeftToRight,
+        vec![4, 5, 6],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Range {
+            left: Bound::Excluded(v(&[0, 1])),
+            right: Bound::Excluded(v(&[2])),
+        },
+        Direction::LeftToRight,
+        vec![4, 5],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Range {
+            left: Bound::Included(v(&[3])),
+            right: Bound::Included(v(&[4])),
+        },
+        Direction::LeftToRight,
+        vec![],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Range {
+            left: Bound::Included(v(&[1, 0])),
+            right: Bound::Included(v(&[1, 0])),
+        },
+        Direction::LeftToRight,
+        vec![5],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Range {
+            left: Bound::Included(v(&[0, 1])),
+            right: Bound::Included(v(&[2])),
+        },
+        Direction::RightToLeft,
+        vec![6, 5, 4, 3],
+    );
+
+    remove_and_commit(&db, "scans", "items", &[1, 0]);
+    assert_scan(
+        &db,
+        ScanRange::All,
+        Direction::LeftToRight,
+        vec![0, 1, 2, 3, 4, 6, 7, 8],
+    );
+
+    assert_eq!(
+        scan(
+            &db,
+            "scans",
+            "items",
+            ScanRange::Range {
+                left: Bound::Included(v(&[2])),
+                right: Bound::Included(v(&[10])),
+            },
+            Direction::LeftToRight,
+        )
+        .into_iter()
+        .map(|(key, _)| key)
+        .collect::<Vec<_>>(),
+        vec![v(&[2]), v(&[10])],
+        "scan ordering must be lexicographic byte ordering, not numeric ordering"
+    );
+}
+
 fn commit_entries<DB: MultiStore>(
     db: &DB,
     namespace: &'static str,
@@ -223,4 +370,53 @@ fn get<DB: MultiStore>(
         .unwrap()
         .get(key)
         .unwrap()
+}
+
+fn assert_scan<DB: MultiStore>(
+    db: &DB,
+    range: ScanRange,
+    direction: Direction,
+    expected_indexes: Vec<usize>,
+) {
+    let expected = expected_indexes
+        .into_iter()
+        .map(|index| scan_entries()[index].clone())
+        .collect::<Vec<_>>();
+
+    assert_eq!(scan(db, "scans", "items", range, direction), expected,);
+}
+
+fn scan<DB: MultiStore>(
+    db: &DB,
+    namespace: &'static str,
+    store: &'static str,
+    range: ScanRange,
+    direction: Direction,
+) -> Vec<(Vec<u8>, Vec<u8>)> {
+    db.read(namespace)
+        .unwrap()
+        .open_store(store)
+        .unwrap()
+        .scan(range, direction)
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap()
+}
+
+fn scan_entries() -> Vec<(Vec<u8>, Vec<u8>)> {
+    vec![
+        (v(&[]), b"empty".to_vec()),
+        (v(&[0]), b"zero".to_vec()),
+        (v(&[0, 0]), b"zero-zero".to_vec()),
+        (v(&[0, 1]), b"zero-one".to_vec()),
+        (v(&[1]), b"one".to_vec()),
+        (v(&[1, 0]), b"one-zero".to_vec()),
+        (v(&[2]), b"two".to_vec()),
+        (v(&[10]), b"ten".to_vec()),
+        (v(&[255]), b"max".to_vec()),
+    ]
+}
+
+fn v(bytes: &[u8]) -> Vec<u8> {
+    bytes.to_vec()
 }
