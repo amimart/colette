@@ -7,6 +7,7 @@ pub fn run_multistore_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     namespace_isolation(&make_db);
     store_isolation(&make_db);
     committed_writes_are_visible(&make_db);
+    write_handle_reads_include_uncommitted_writes(&make_db);
 }
 
 fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
@@ -98,6 +99,19 @@ fn committed_writes_are_visible<DB: MultiStore>(make_db: &impl Fn() -> DB) {
         get(&db, "commits", "items", b"k"),
         Some(b"committed".to_vec())
     );
+}
+
+fn write_handle_reads_include_uncommitted_writes<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let db = make_db();
+    db.prepare("write-reads", ["items"]).unwrap();
+
+    let mut write = db.write("write-reads").unwrap();
+    {
+        let mut store = write.open_store("items").unwrap();
+        store.set(b"k", b"uncommitted").unwrap();
+        assert_eq!(store.get(b"k").unwrap(), Some(b"uncommitted".to_vec()));
+    }
+    write.commit().unwrap();
 }
 
 fn commit_entries<DB: MultiStore>(
