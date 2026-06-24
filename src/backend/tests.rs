@@ -8,6 +8,7 @@ pub fn run_multistore_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     store_isolation(&make_db);
     committed_writes_are_visible(&make_db);
     write_handle_reads_include_uncommitted_writes(&make_db);
+    read_handles_keep_stable_snapshots(&make_db);
 }
 
 fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
@@ -112,6 +113,30 @@ fn write_handle_reads_include_uncommitted_writes<DB: MultiStore>(make_db: &impl 
         assert_eq!(store.get(b"k").unwrap(), Some(b"uncommitted".to_vec()));
     }
     write.commit().unwrap();
+}
+
+fn read_handles_keep_stable_snapshots<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let db = make_db();
+    db.prepare("snapshots", ["items"]).unwrap();
+
+    let before = db.read("snapshots").unwrap();
+
+    commit_entries(
+        &db,
+        "snapshots",
+        "items",
+        &[(b"k".to_vec(), b"after".to_vec())],
+    );
+
+    assert_eq!(
+        before.open_store("items").unwrap().get(b"k").unwrap(),
+        None,
+        "existing read handles should keep their pre-commit snapshot"
+    );
+    assert_eq!(
+        get(&db, "snapshots", "items", b"k"),
+        Some(b"after".to_vec())
+    );
 }
 
 fn commit_entries<DB: MultiStore>(
