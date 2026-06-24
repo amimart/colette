@@ -1,3 +1,4 @@
+pub mod backend;
 pub mod collection;
 pub mod entity;
 pub mod error;
@@ -10,7 +11,6 @@ pub mod macros;
 pub mod prefix;
 pub mod scan;
 pub mod store;
-pub mod backend;
 
 #[cfg(test)]
 pub mod testing;

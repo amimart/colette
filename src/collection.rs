@@ -121,7 +121,6 @@ where
             old
         };
 
-
         Indexes::update(&mut tx, &pk, old.as_ref(), value)?;
 
         tx.commit().map_err(Error::Backend)

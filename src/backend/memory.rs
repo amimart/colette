@@ -1,9 +1,12 @@
+use crate::error::BackendError;
+use crate::scan::{Direction, ScanRange};
+use crate::store::{
+    MultiStore, MultiStoreReadHandle, MultiStoreWriteHandle, ReadKVStore, ReadWriteKVStore,
+    WriteKVStore,
+};
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 use std::vec::IntoIter;
-use crate::error::BackendError;
-use crate::scan::{Direction, ScanRange};
-use crate::store::{MultiStore, MultiStoreReadHandle, MultiStoreWriteHandle, ReadKVStore, ReadWriteKVStore, WriteKVStore};
 
 pub struct InMemoryMultiStore {
     stores: Arc<RwLock<BTreeMap<&'static str, Arc<RwLock<Arc<NamespacedStores>>>>>>,
@@ -12,6 +15,12 @@ pub struct InMemoryMultiStore {
 pub type NamespacedStores = BTreeMap<&'static str, Arc<KVStore>>;
 pub type StagedStores = BTreeMap<&'static str, KVStore>;
 pub type KVStore = BTreeMap<Vec<u8>, Vec<u8>>;
+
+impl Default for InMemoryMultiStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl InMemoryMultiStore {
     pub fn new() -> Self {
@@ -25,7 +34,11 @@ impl MultiStore for InMemoryMultiStore {
     type ReadHandle = InMemoryReadHandle;
     type WriteHandle = InMemoryWriteHandle;
 
-    fn prepare(&self, namespace: &'static str, stores: impl IntoIterator<Item=&'static str>) -> Result<(), BackendError> {
+    fn prepare(
+        &self,
+        namespace: &'static str,
+        stores: impl IntoIterator<Item = &'static str>,
+    ) -> Result<(), BackendError> {
         let mut nstores = NamespacedStores::new();
         stores.into_iter().for_each(|store| {
             nstores.insert(store, Arc::new(KVStore::new()));
@@ -49,16 +62,15 @@ impl MultiStore for InMemoryMultiStore {
         let db = self.stores.read().unwrap();
         let nstores = db.get(namespace).unwrap();
         let snapshot = nstores.read().unwrap().clone();
-        let staged = snapshot.iter()
+        let staged = snapshot
+            .iter()
             .map(|(n, s)| (*n, s.as_ref().clone()))
             .collect();
 
-        Ok(
-            InMemoryWriteHandle {
-                namespace: nstores.clone(),
-                staged,
-            }
-        )
+        Ok(InMemoryWriteHandle {
+            namespace: nstores.clone(),
+            staged,
+        })
     }
 }
 
@@ -89,10 +101,14 @@ impl ReadKVStore for InMemoryReadStore {
 
     fn scan(self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError> {
         let scan: Vec<Result<(Vec<u8>, Vec<u8>), BackendError>> = match direction {
-            Direction::LeftToRight => self.store.range(range)
+            Direction::LeftToRight => self
+                .store
+                .range(range)
                 .map(|(k, v)| Ok((k.clone(), v.clone())))
                 .collect(),
-            Direction::RightToLeft => self.store.range(range)
+            Direction::RightToLeft => self
+                .store
+                .range(range)
                 .rev()
                 .map(|(k, v)| Ok((k.clone(), v.clone())))
                 .collect(),
@@ -111,15 +127,15 @@ impl MultiStoreWriteHandle for InMemoryWriteHandle {
     type Store<'a> = InMemoryWriteStore<'a>;
 
     fn open_store(&mut self, name: &'static str) -> Result<Self::Store<'_>, BackendError> {
-        Ok(
-            InMemoryWriteStore{
-                store: self.staged.get_mut(name).unwrap(),
-            }
-        )
+        Ok(InMemoryWriteStore {
+            store: self.staged.get_mut(name).unwrap(),
+        })
     }
 
     fn commit(self) -> Result<(), BackendError> {
-        let new_stores = self.staged.into_iter()
+        let new_stores = self
+            .staged
+            .into_iter()
             .map(|(n, s)| (n, Arc::new(s)))
             .collect();
 
@@ -137,7 +153,8 @@ impl<'a> ReadWriteKVStore<'a> for InMemoryWriteStore<'a> {}
 
 impl<'a> WriteKVStore<'a> for InMemoryWriteStore<'a> {
     fn set(&mut self, key: impl AsRef<[u8]>, value: impl AsRef<[u8]>) -> Result<(), BackendError> {
-        self.store.insert(key.as_ref().to_owned(), value.as_ref().to_owned());
+        self.store
+            .insert(key.as_ref().to_owned(), value.as_ref().to_owned());
         Ok(())
     }
 
@@ -156,10 +173,14 @@ impl ReadKVStore for InMemoryWriteStore<'_> {
 
     fn scan(self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError> {
         let scan: Vec<Result<(Vec<u8>, Vec<u8>), BackendError>> = match direction {
-            Direction::LeftToRight => self.store.range(range)
+            Direction::LeftToRight => self
+                .store
+                .range(range)
                 .map(|(k, v)| Ok((k.clone(), v.clone())))
                 .collect(),
-            Direction::RightToLeft => self.store.range(range)
+            Direction::RightToLeft => self
+                .store
+                .range(range)
                 .rev()
                 .map(|(k, v)| Ok((k.clone(), v.clone())))
                 .collect(),

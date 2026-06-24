@@ -7,7 +7,11 @@ pub trait MultiStore {
 
     /// Initializes the given stores for this namespace, if not existing already. Using a non-initialized
     /// namespace or store will panic.
-    fn prepare(&self, namespace: &'static str, stores: impl IntoIterator<Item = &'static str>) -> Result<(), BackendError>;
+    fn prepare(
+        &self,
+        namespace: &'static str,
+        stores: impl IntoIterator<Item = &'static str>,
+    ) -> Result<(), BackendError>;
 
     fn read(&self, namespace: &'static str) -> Result<Self::ReadHandle, BackendError>;
 

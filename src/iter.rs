@@ -1,5 +1,5 @@
 use crate::entity::Entity;
-use crate::error::{BackendError, Error};
+use crate::error::Error;
 use crate::store::ReadKVStore;
 use std::marker::PhantomData;
 

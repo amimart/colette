@@ -45,9 +45,7 @@ impl RangeBounds<Vec<u8>> for ScanRange {
         match self {
             ScanRange::All => Bound::Unbounded,
             ScanRange::Prefix(p) => Bound::Included(p),
-            ScanRange::Range { left, right } => {
-                left.as_ref()
-            }
+            ScanRange::Range { left, right: _ } => left.as_ref(),
         }
     }
 
@@ -55,9 +53,7 @@ impl RangeBounds<Vec<u8>> for ScanRange {
         match self {
             ScanRange::All => Bound::Unbounded,
             ScanRange::Prefix(p) => Bound::Included(p),
-            ScanRange::Range { left, right } => {
-                right.as_ref()
-            }
+            ScanRange::Range { left: _, right } => right.as_ref(),
         }
     }
 }
@@ -119,8 +115,7 @@ where
         self
     }
 
-    pub fn iter(self) -> Result<IndexIterator<ReadHandle::Store, Record>, Error>
-    {
+    pub fn iter(self) -> Result<IndexIterator<ReadHandle::Store, Record>, Error> {
         Ok(IndexIterator::new(
             self.read_handle
                 .open_store(Idx::NAME)?
