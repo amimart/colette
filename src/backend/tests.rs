@@ -4,6 +4,7 @@ use crate::store::{
 
 pub fn run_multistore_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     basic_operations(&make_db);
+    namespace_isolation(&make_db);
 }
 
 fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
@@ -23,6 +24,34 @@ fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
 
     remove_and_commit(&db, "basic", "items", b"missing");
     assert_eq!(get(&db, "basic", "items", b"missing"), None);
+}
+
+fn namespace_isolation<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let db = make_db();
+    db.prepare("left", ["items"]).unwrap();
+    db.prepare("right", ["items"]).unwrap();
+
+    commit_entries(
+        &db,
+        "left",
+        "items",
+        &[(b"same-key".to_vec(), b"left".to_vec())],
+    );
+    commit_entries(
+        &db,
+        "right",
+        "items",
+        &[(b"same-key".to_vec(), b"right".to_vec())],
+    );
+
+    assert_eq!(
+        get(&db, "left", "items", b"same-key"),
+        Some(b"left".to_vec())
+    );
+    assert_eq!(
+        get(&db, "right", "items", b"same-key"),
+        Some(b"right".to_vec())
+    );
 }
 
 fn commit_entries<DB: MultiStore>(
