@@ -193,13 +193,13 @@ fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
         &db,
         ScanRange::All,
         Direction::LeftToRight,
-        vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
     );
     assert_scan(
         &db,
         ScanRange::All,
         Direction::RightToLeft,
-        vec![8, 7, 6, 5, 4, 3, 2, 1, 0],
+        vec![11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
     );
     assert_scan(
         &db,
@@ -208,7 +208,7 @@ fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
             right: Bound::Unbounded,
         },
         Direction::LeftToRight,
-        vec![4, 5, 6, 7, 8],
+        vec![4, 5, 6, 7, 8, 9, 10, 11],
     );
     assert_scan(
         &db,
@@ -217,7 +217,7 @@ fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
             right: Bound::Unbounded,
         },
         Direction::LeftToRight,
-        vec![5, 6, 7, 8],
+        vec![5, 6, 7, 8, 9, 10, 11],
     );
     assert_scan(
         &db,
@@ -276,8 +276,8 @@ fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     assert_scan(
         &db,
         ScanRange::Range {
-            left: Bound::Included(v(&[3])),
-            right: Bound::Included(v(&[4])),
+            left: Bound::Included(v(&[4])),
+            right: Bound::Included(v(&[5])),
         },
         Direction::LeftToRight,
         vec![],
@@ -304,7 +304,13 @@ fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
         &db,
         ScanRange::Prefix(v(&[])),
         Direction::LeftToRight,
-        vec![0, 1, 2, 3, 4, 5, 6, 7, 8],
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Prefix(v(&[])),
+        Direction::RightToLeft,
+        vec![11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
     );
     assert_scan(
         &db,
@@ -320,13 +326,37 @@ fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     );
     assert_scan(
         &db,
+        ScanRange::Prefix(v(&[3])),
+        Direction::LeftToRight,
+        vec![7, 8],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Prefix(v(&[3])),
+        Direction::RightToLeft,
+        vec![8, 7],
+    );
+    assert_scan(
+        &db,
         ScanRange::Prefix(v(&[1, 0])),
         Direction::LeftToRight,
         vec![5],
     );
     assert_scan(
         &db,
-        ScanRange::Prefix(v(&[3])),
+        ScanRange::Prefix(v(&[255])),
+        Direction::LeftToRight,
+        vec![10, 11],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Prefix(v(&[255])),
+        Direction::RightToLeft,
+        vec![11, 10],
+    );
+    assert_scan(
+        &db,
+        ScanRange::Prefix(v(&[4])),
         Direction::LeftToRight,
         vec![],
     );
@@ -336,7 +366,7 @@ fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
         &db,
         ScanRange::All,
         Direction::LeftToRight,
-        vec![0, 1, 2, 3, 4, 6, 7, 8],
+        vec![0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11],
     );
 
     assert_eq!(
@@ -353,7 +383,7 @@ fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
         .into_iter()
         .map(|(key, _)| key)
         .collect::<Vec<_>>(),
-        vec![v(&[2]), v(&[10])],
+        vec![v(&[2]), v(&[3, 0]), v(&[3, 1]), v(&[10])],
         "scan ordering must be lexicographic byte ordering, not numeric ordering"
     );
 }
@@ -442,8 +472,11 @@ fn scan_entries() -> Vec<(Vec<u8>, Vec<u8>)> {
         (v(&[1]), b"one".to_vec()),
         (v(&[1, 0]), b"one-zero".to_vec()),
         (v(&[2]), b"two".to_vec()),
+        (v(&[3, 0]), b"three-zero".to_vec()),
+        (v(&[3, 1]), b"three-one".to_vec()),
         (v(&[10]), b"ten".to_vec()),
         (v(&[255]), b"max".to_vec()),
+        (v(&[255, 0]), b"max-zero".to_vec()),
     ]
 }
 
