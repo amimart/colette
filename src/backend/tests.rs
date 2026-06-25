@@ -64,8 +64,8 @@ macro_rules! multistore_contract_tests {
     };
 }
 
-pub(crate) use multistore_contract_tests;
 use crate::prefix::encoded_prefix_range;
+pub(crate) use multistore_contract_tests;
 
 pub(crate) fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     let db = make_db();

@@ -1,5 +1,5 @@
-use std::collections::Bound;
 use crate::key::Key;
+use std::ops::Bound;
 
 pub trait Prefix {
     fn encode_prefix(&self) -> Vec<u8>;
@@ -46,6 +46,7 @@ pub(crate) fn prefix_end(mut bytes: Vec<u8>) -> Bound<Vec<u8>> {
 }
 
 /// Takes an already encoded prefix and return its range, for testing purposes only.
+#[cfg(test)]
 pub(crate) fn encoded_prefix_range(prefix: Vec<u8>) -> (Bound<Vec<u8>>, Bound<Vec<u8>>) {
     if prefix.is_empty() {
         return (Bound::Unbounded, Bound::Unbounded);
@@ -118,4 +119,88 @@ where
     C: Key,
     D: Key,
 {
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct RawPrefix(Vec<u8>);
+
+    impl Prefix for RawPrefix {
+        fn encode_prefix(&self) -> Vec<u8> {
+            self.0.clone()
+        }
+    }
+
+    #[test]
+    fn prefix_end_returns_exclusive_successor() {
+        let cases = vec![
+            (vec![], Bound::Unbounded),
+            (vec![0x01], Bound::Excluded(vec![0x02])),
+            (vec![0x01, 0x02], Bound::Excluded(vec![0x01, 0x03])),
+            (vec![0x01, 0xff], Bound::Excluded(vec![0x02])),
+            (vec![0xff], Bound::Unbounded),
+            (vec![0xff, 0xff], Bound::Unbounded),
+        ];
+
+        for (prefix, expected) in cases {
+            assert_eq!(prefix_end(prefix), expected);
+        }
+    }
+
+    #[test]
+    fn raw_prefix_bounds_are_unbounded_for_empty_prefix() {
+        let prefix = RawPrefix(vec![]);
+
+        assert_eq!(prefix.start_bound(), Bound::Unbounded);
+        assert_eq!(prefix.end_bound(), Bound::Unbounded);
+        assert_eq!(prefix.range(), (Bound::Unbounded, Bound::Unbounded));
+    }
+
+    #[test]
+    fn raw_prefix_bounds_cover_prefixed_bytes() {
+        let prefix = RawPrefix(vec![0x01, 0x02]);
+
+        assert_eq!(prefix.start_bound(), Bound::Included(vec![0x01, 0x02]));
+        assert_eq!(prefix.end_bound(), Bound::Excluded(vec![0x01, 0x03]));
+        assert_eq!(
+            prefix.range(),
+            (
+                Bound::Included(vec![0x01, 0x02]),
+                Bound::Excluded(vec![0x01, 0x03])
+            )
+        );
+    }
+
+    #[test]
+    fn raw_prefix_bounds_without_finite_end_are_upper_unbounded() {
+        let prefix = RawPrefix(vec![0xff]);
+
+        assert_eq!(prefix.start_bound(), Bound::Included(vec![0xff]));
+        assert_eq!(prefix.end_bound(), Bound::Unbounded);
+        assert_eq!(
+            prefix.range(),
+            (Bound::Included(vec![0xff]), Bound::Unbounded)
+        );
+    }
+
+    #[test]
+    fn encoded_prefix_range_uses_already_encoded_bytes() {
+        let cases = vec![
+            (vec![], (Bound::Unbounded, Bound::Unbounded)),
+            (
+                vec![0x01, 0x02],
+                (
+                    Bound::Included(vec![0x01, 0x02]),
+                    Bound::Excluded(vec![0x01, 0x03]),
+                ),
+            ),
+            (vec![0xff], (Bound::Included(vec![0xff]), Bound::Unbounded)),
+        ];
+
+        for (prefix, expected) in cases {
+            assert_eq!(encoded_prefix_range(prefix), expected);
+        }
+    }
 }
