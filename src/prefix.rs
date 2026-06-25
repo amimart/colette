@@ -21,6 +21,16 @@ pub trait Prefix {
 
         prefix_end(bytes)
     }
+
+    fn range(&self) -> (Bound<Vec<u8>>, Bound<Vec<u8>>) {
+        let bytes = self.encode_prefix();
+        if bytes.is_empty() {
+            return (Bound::Unbounded, Bound::Unbounded);
+        }
+
+        let end_bound = prefix_end(bytes.clone());
+        (Bound::Included(bytes), end_bound)
+    }
 }
 
 fn prefix_end(mut bytes: Vec<u8>) -> Bound<Vec<u8>> {
