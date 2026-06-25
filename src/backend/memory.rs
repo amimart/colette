@@ -9,12 +9,18 @@ use std::sync::{Arc, RwLock};
 use std::vec::IntoIter;
 
 pub struct InMemoryMultiStore {
-    stores: Arc<RwLock<BTreeMap<&'static str, Arc<RwLock<Arc<NamespacedStores>>>>>>,
+    stores: SharedNamespaces,
 }
 
+pub type SharedNamespaces = Arc<RwLock<Namespaces>>;
+pub type Namespaces = BTreeMap<&'static str, SharedNamespacedStores>;
+pub type SharedNamespacedStores = Arc<RwLock<Arc<NamespacedStores>>>;
 pub type NamespacedStores = BTreeMap<&'static str, Arc<KVStore>>;
 pub type StagedStores = BTreeMap<&'static str, KVStore>;
 pub type KVStore = BTreeMap<Vec<u8>, Vec<u8>>;
+pub type ScanItem = (Vec<u8>, Vec<u8>);
+pub type ScanResult = Result<ScanItem, BackendError>;
+pub type ScanResults = Vec<ScanResult>;
 
 impl Default for InMemoryMultiStore {
     fn default() -> Self {
@@ -93,14 +99,14 @@ pub struct InMemoryReadStore {
 }
 
 impl ReadKVStore for InMemoryReadStore {
-    type Iter = IntoIter<Result<(Vec<u8>, Vec<u8>), BackendError>>;
+    type Iter = IntoIter<ScanResult>;
 
     fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError> {
         Ok(self.store.get(key.as_ref()).cloned())
     }
 
     fn scan(self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError> {
-        let scan: Vec<Result<(Vec<u8>, Vec<u8>), BackendError>> = match direction {
+        let scan: ScanResults = match direction {
             Direction::LeftToRight => self
                 .store
                 .range(range)
@@ -165,14 +171,14 @@ impl<'a> WriteKVStore<'a> for InMemoryWriteStore<'a> {
 }
 
 impl ReadKVStore for InMemoryWriteStore<'_> {
-    type Iter = IntoIter<Result<(Vec<u8>, Vec<u8>), BackendError>>;
+    type Iter = IntoIter<ScanResult>;
 
     fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError> {
         Ok(self.store.get(key.as_ref()).map(|v| v.to_owned()))
     }
 
     fn scan(self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError> {
-        let scan: Vec<Result<(Vec<u8>, Vec<u8>), BackendError>> = match direction {
+        let scan: ScanResults = match direction {
             Direction::LeftToRight => self
                 .store
                 .range(range)
