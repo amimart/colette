@@ -46,12 +46,12 @@ pub enum ScanRange {
 impl ScanRange {
     pub fn prefix(prefix: Vec<u8>) -> Self {
         if prefix.is_empty() {
-            return ScanRange::All
+            return ScanRange::All;
         }
 
         let end = Self::prefix_end(&prefix);
 
-        Self::Prefix{
+        Self::Prefix {
             start: Bound::Included(prefix),
             end,
         }
@@ -63,7 +63,7 @@ impl ScanRange {
             if out[i] != 0xff {
                 out[i] += 1;
                 out.truncate(i + 1);
-                return Bound::Excluded(out)
+                return Bound::Excluded(out);
             }
         }
 
@@ -75,7 +75,7 @@ impl RangeBounds<Vec<u8>> for ScanRange {
     fn start_bound(&self) -> Bound<&Vec<u8>> {
         match self {
             ScanRange::All => Bound::Unbounded,
-            ScanRange::Prefix{start, end: _} => start.as_ref(),
+            ScanRange::Prefix { start, end: _ } => start.as_ref(),
             ScanRange::Range { left, right: _ } => left.as_ref(),
         }
     }
@@ -83,7 +83,7 @@ impl RangeBounds<Vec<u8>> for ScanRange {
     fn end_bound(&self) -> Bound<&Vec<u8>> {
         match self {
             ScanRange::All => Bound::Unbounded,
-            ScanRange::Prefix{start: _ , end} => end.as_ref(),
+            ScanRange::Prefix { start: _, end } => end.as_ref(),
             ScanRange::Range { left: _, right } => right.as_ref(),
         }
     }
