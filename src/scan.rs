@@ -45,9 +45,8 @@ pub enum ScanRange {
 
 impl ScanRange {
     pub fn prefix(prefix: Vec<u8>) -> Self {
-        let start = prefix.encode_prefix();
-        let end = prefix_end(&start);
-        Self::Prefix{ start, end }
+        let end = prefix_end(&prefix);
+        Self::Prefix{ start: prefix, end }
     }
 }
 
