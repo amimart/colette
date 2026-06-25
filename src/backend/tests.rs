@@ -426,7 +426,7 @@ pub(crate) fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     ];
 
     for case in cases {
-        assert_scan(&db, case);
+        case.assert(&db);
     }
 
     remove_and_commit(&db, "scans", "items", &[1, 0]);
@@ -437,7 +437,7 @@ pub(crate) fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
         Direction::LeftToRight,
         &[0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11],
     )] {
-        assert_scan(&db, case);
+        case.assert(&db);
     }
 }
 
@@ -506,21 +506,21 @@ impl ScanCase {
             expected_indexes,
         }
     }
-}
 
-fn assert_scan<DB: MultiStore>(db: &DB, case: ScanCase) {
-    let expected = case
-        .expected_indexes
-        .into_iter()
-        .map(|index| scan_entries()[*index].clone())
-        .collect::<Vec<_>>();
+    fn assert<DB: MultiStore>(self, db: &DB) {
+        let expected = self
+            .expected_indexes
+            .into_iter()
+            .map(|index| scan_entries()[*index].clone())
+            .collect::<Vec<_>>();
 
-    assert_eq!(
-        scan(db, "scans", "items", case.range, case.direction),
-        expected,
-        "{}",
-        case.name,
-    );
+        assert_eq!(
+            scan(db, "scans", "items", self.range, self.direction),
+            expected,
+            "{}",
+            self.name,
+        );
+    }
 }
 
 fn scan<DB: MultiStore>(
