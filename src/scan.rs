@@ -263,11 +263,25 @@ mod tests {
     }
 
     enum ScanSetup {
+        Default,
         Range {
             left: Bound<Vec<u8>>,
             right: Bound<Vec<u8>>,
         },
         Prefix(u32),
+        PrefixRange {
+            left: Bound<u32>,
+            right: Bound<u32>,
+        },
+        PrefixOrKeyRange {
+            left: Bound<RangeEndpoint>,
+            right: Bound<RangeEndpoint>,
+        },
+    }
+
+    enum RangeEndpoint {
+        Prefix(u32),
+        Key(u32, u32),
     }
 
     #[derive(Debug, PartialEq, Eq)]
@@ -283,10 +297,18 @@ mod tests {
 
             let scan = IndexScan::<_, Record, ByNumber>::new("records", read);
             let scan = match self.setup {
+                ScanSetup::Default => scan,
                 ScanSetup::Range { left, right } => {
                     scan.range(left.map(decode_store_key)..right.map(decode_store_key))
                 }
                 ScanSetup::Prefix(prefix) => scan.prefix(prefix),
+                ScanSetup::PrefixRange { left, right } => scan.prefix_range(left..right),
+                ScanSetup::PrefixOrKeyRange { left, right } => {
+                    PrefixScan::<TestStoreKey, u32>::range(
+                        scan,
+                        left.map(prefix_or_key)..right.map(prefix_or_key),
+                    )
+                }
             }
             .direction(self.direction);
             let scan = match self.after {
@@ -318,7 +340,7 @@ mod tests {
         let cases = vec![
             ScanCase {
                 name: "no cursor keeps unbounded scan",
-                setup: range(Bound::Unbounded, Bound::Unbounded),
+                setup: ScanSetup::Default,
                 direction: Direction::LeftToRight,
                 after: None,
                 expected: Ok(scan_log(
@@ -470,6 +492,94 @@ mod tests {
         }
     }
 
+    #[test]
+    fn configures_iter_scan_bounds_from_public_range_builders() {
+        let cases = vec![
+            ScanCase {
+                name: "default scan is unbounded",
+                setup: ScanSetup::Default,
+                direction: Direction::LeftToRight,
+                after: None,
+                expected: Ok(scan_log(
+                    Bound::Unbounded,
+                    Bound::Unbounded,
+                    Direction::LeftToRight,
+                )),
+            },
+            ScanCase {
+                name: "store-key range configures encoded bounds",
+                setup: range(
+                    Bound::Included(encode_store_key(1, 10)),
+                    Bound::Excluded(encode_store_key(3, 30)),
+                ),
+                direction: Direction::LeftToRight,
+                after: None,
+                expected: Ok(scan_log(
+                    Bound::Included(encode_store_key(1, 10)),
+                    Bound::Excluded(encode_store_key(3, 30)),
+                    Direction::LeftToRight,
+                )),
+            },
+            ScanCase {
+                name: "prefix configures prefix bounds",
+                setup: ScanSetup::Prefix(2),
+                direction: Direction::LeftToRight,
+                after: None,
+                expected: Ok(scan_log(
+                    prefix_bounds(encode_index_prefix(2)).0,
+                    prefix_bounds(encode_index_prefix(2)).1,
+                    Direction::LeftToRight,
+                )),
+            },
+            ScanCase {
+                name: "prefix range configures encoded prefix bounds",
+                setup: ScanSetup::PrefixRange {
+                    left: Bound::Included(2),
+                    right: Bound::Excluded(4),
+                },
+                direction: Direction::RightToLeft,
+                after: None,
+                expected: Ok(scan_log(
+                    Bound::Included(encode_index_prefix(2)),
+                    Bound::Excluded(encode_index_prefix(4)),
+                    Direction::RightToLeft,
+                )),
+            },
+            ScanCase {
+                name: "prefix-or-key range supports prefix lower bound",
+                setup: ScanSetup::PrefixOrKeyRange {
+                    left: Bound::Included(RangeEndpoint::Prefix(2)),
+                    right: Bound::Excluded(RangeEndpoint::Key(3, 30)),
+                },
+                direction: Direction::LeftToRight,
+                after: None,
+                expected: Ok(scan_log(
+                    Bound::Included(encode_index_prefix(2)),
+                    Bound::Excluded(encode_store_key(3, 30)),
+                    Direction::LeftToRight,
+                )),
+            },
+            ScanCase {
+                name: "prefix-or-key range supports key lower bound",
+                setup: ScanSetup::PrefixOrKeyRange {
+                    left: Bound::Excluded(RangeEndpoint::Key(2, 20)),
+                    right: Bound::Included(RangeEndpoint::Prefix(4)),
+                },
+                direction: Direction::RightToLeft,
+                after: None,
+                expected: Ok(scan_log(
+                    Bound::Excluded(encode_store_key(2, 20)),
+                    Bound::Included(encode_index_prefix(4)),
+                    Direction::RightToLeft,
+                )),
+            },
+        ];
+
+        for case in cases {
+            case.assert();
+        }
+    }
+
     fn scan_log(left: Bound<Vec<u8>>, right: Bound<Vec<u8>>, direction: Direction) -> ScanLog {
         ScanLog {
             left,
@@ -480,6 +590,15 @@ mod tests {
 
     fn range(left: Bound<Vec<u8>>, right: Bound<Vec<u8>>) -> ScanSetup {
         ScanSetup::Range { left, right }
+    }
+
+    type TestStoreKey = StoreKey<'static, 'static, ByNumber, u32, Record>;
+
+    fn prefix_or_key(endpoint: RangeEndpoint) -> PrefixOrKey<TestStoreKey, u32> {
+        match endpoint {
+            RangeEndpoint::Prefix(prefix) => PrefixOrKey::Prefix(prefix),
+            RangeEndpoint::Key(index, pk) => PrefixOrKey::Key(store_key(index, pk)),
+        }
     }
 
     fn store_key(index: u32, pk: u32) -> StoreKey<'static, 'static, ByNumber, u32, Record> {
