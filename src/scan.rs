@@ -3,7 +3,7 @@ use crate::error::Error;
 use crate::index::{Index, IndexKind, StoreKey};
 use crate::iter::IndexIterator;
 use crate::key::Key;
-use crate::prefix::{Prefix, Prefixable};
+use crate::prefix::{prefix_end, Prefix, Prefixable};
 use crate::store::{MultiStoreReadHandle, ReadKVStore};
 use std::marker::PhantomData;
 use std::ops::{Bound, Range, RangeBounds};
@@ -33,19 +33,30 @@ where
 
 pub enum ScanRange {
     All,
-    Prefix(Vec<u8>),
+    Prefix {
+        start: Vec<u8>,
+        end: Vec<u8>,
+    },
     Range {
         left: Bound<Vec<u8>>,
         right: Bound<Vec<u8>>,
     },
 }
 
+impl ScanRange {
+    pub fn prefix(prefix: Vec<u8>) -> Self {
+        let start = prefix.encode_prefix();
+        let end = prefix_end(&start);
+        Self::Prefix{ start, end }
+    }
+}
+
 impl RangeBounds<Vec<u8>> for ScanRange {
     fn start_bound(&self) -> Bound<&Vec<u8>> {
         match self {
             ScanRange::All => Bound::Unbounded,
-            ScanRange::Prefix(p) if p.is_empty() => Bound::Unbounded,
-            ScanRange::Prefix(p) => Bound::Included(p),
+            ScanRange::Prefix{start, end: _} if start.is_empty() => Bound::Unbounded,
+            ScanRange::Prefix{start, end: _} => Bound::Included(start),
             ScanRange::Range { left, right: _ } => left.as_ref(),
         }
     }
@@ -53,8 +64,8 @@ impl RangeBounds<Vec<u8>> for ScanRange {
     fn end_bound(&self) -> Bound<&Vec<u8>> {
         match self {
             ScanRange::All => Bound::Unbounded,
-            ScanRange::Prefix(p) if p.is_empty() => Bound::Unbounded,
-            ScanRange::Prefix(p) => Bound::Included(p),
+            ScanRange::Prefix{start, end: _} if start.is_empty() => Bound::Unbounded,
+            ScanRange::Prefix{start: _ , end} => Bound::Excluded(end),
             ScanRange::Range { left: _, right } => right.as_ref(),
         }
     }
@@ -147,7 +158,7 @@ where
     for<'b> Idx::Kind<'b>: IndexKind<Idx::Key<'b>, Record::Key<'b>>,
 {
     fn prefix(mut self, prefix: KeyPrefix) -> Self {
-        self.range = ScanRange::Prefix(prefix.encode_prefix());
+        self.range = ScanRange::prefix(prefix.encode_prefix());
         self
     }
 
