@@ -13,20 +13,6 @@ where
     }
 }
 
-pub fn prefix_end(bytes: &[u8]) -> Vec<u8> {
-    let mut out = bytes.to_vec();
-    for i in (0..out.len()).rev() {
-        if out[i] != 0xff {
-            out[i] += 1;
-            out.truncate(i + 1);
-            return out
-        }
-    }
-
-    out.push(0x00);
-    out
-}
-
 pub trait Prefixable<P>
 where
     P: Prefix,
