@@ -35,28 +35,6 @@ where
     }
 }
 
-pub(crate) fn prefix_bounds(prefix: Vec<u8>) -> ScanBounds {
-    if prefix.is_empty() {
-        return (Bound::Unbounded, Bound::Unbounded);
-    }
-
-    let right = prefix_end(&prefix);
-    (Bound::Included(prefix), right)
-}
-
-fn prefix_end(bytes: &[u8]) -> ScanBound {
-    let mut out = bytes.to_vec();
-    for i in (0..out.len()).rev() {
-        if out[i] != 0xff {
-            out[i] += 1;
-            out.truncate(i + 1);
-            return Bound::Excluded(out);
-        }
-    }
-
-    Bound::Unbounded
-}
-
 pub struct IndexScan<'a, ReadHandle, Record, Idx>
 where
     Self: 'a,
@@ -170,7 +148,8 @@ where
     for<'b> Idx::Kind<'b>: IndexKind<Idx::Key<'b>, Record::Key<'b>>,
 {
     fn prefix(mut self, prefix: KeyPrefix) -> Self {
-        (self.left, self.right) = prefix_bounds(prefix.encode_prefix());
+        self.left = prefix.start_bound();
+        self.right = prefix.end_bound();
         self
     }
 
@@ -197,6 +176,7 @@ mod tests {
     use crate::error::{CodecError, Error};
     use crate::index::{Index, Multi};
     use crate::key::Key;
+    use crate::prefix::encoded_prefix_range;
     use crate::store::MultiStore;
     use crate::testing::{MockDb, ScanLog};
 
@@ -454,7 +434,7 @@ mod tests {
                 after: Some((2, 20)),
                 expected: Ok(scan_log(
                     Bound::Excluded(encode_store_key(2, 20)),
-                    prefix_bounds(encode_index_prefix(2)).1,
+                    encoded_prefix_range(encode_index_prefix(2)).1,
                     Direction::LeftToRight,
                 )),
             },
@@ -506,8 +486,8 @@ mod tests {
                 direction: Direction::LeftToRight,
                 after: None,
                 expected: Ok(scan_log(
-                    prefix_bounds(encode_index_prefix(2)).0,
-                    prefix_bounds(encode_index_prefix(2)).1,
+                    encoded_prefix_range(encode_index_prefix(2)).0,
+                    encoded_prefix_range(encode_index_prefix(2)).1,
                     Direction::LeftToRight,
                 )),
             },
@@ -535,7 +515,7 @@ mod tests {
                 after: None,
                 expected: Ok(scan_log(
                     Bound::Included(encode_index_prefix(2)),
-                    prefix_bounds(encode_index_prefix(4)).1,
+                    encoded_prefix_range(encode_index_prefix(4)).1,
                     Direction::LeftToRight,
                 )),
             },
@@ -548,7 +528,7 @@ mod tests {
                 direction: Direction::LeftToRight,
                 after: None,
                 expected: Ok(scan_log(
-                    prefix_bounds(encode_index_prefix(2)).1,
+                    encoded_prefix_range(encode_index_prefix(2)).1,
                     Bound::Excluded(encode_index_prefix(4)),
                     Direction::LeftToRight,
                 )),
@@ -577,7 +557,7 @@ mod tests {
                 after: None,
                 expected: Ok(scan_log(
                     Bound::Excluded(encode_store_key(2, 20)),
-                    prefix_bounds(encode_index_prefix(4)).1,
+                    encoded_prefix_range(encode_index_prefix(4)).1,
                     Direction::RightToLeft,
                 )),
             },
@@ -590,7 +570,7 @@ mod tests {
                 direction: Direction::LeftToRight,
                 after: None,
                 expected: Ok(scan_log(
-                    prefix_bounds(encode_index_prefix(2)).1,
+                    encoded_prefix_range(encode_index_prefix(2)).1,
                     Bound::Excluded(encode_index_prefix(4)),
                     Direction::LeftToRight,
                 )),
