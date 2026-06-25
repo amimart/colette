@@ -44,6 +44,7 @@ impl RangeBounds<Vec<u8>> for ScanRange {
     fn start_bound(&self) -> Bound<&Vec<u8>> {
         match self {
             ScanRange::All => Bound::Unbounded,
+            ScanRange::Prefix(p) if p.is_empty() => Bound::Unbounded,
             ScanRange::Prefix(p) => Bound::Included(p),
             ScanRange::Range { left, right: _ } => left.as_ref(),
         }
@@ -52,6 +53,7 @@ impl RangeBounds<Vec<u8>> for ScanRange {
     fn end_bound(&self) -> Bound<&Vec<u8>> {
         match self {
             ScanRange::All => Bound::Unbounded,
+            ScanRange::Prefix(p) if p.is_empty() => Bound::Unbounded,
             ScanRange::Prefix(p) => Bound::Included(p),
             ScanRange::Range { left: _, right } => right.as_ref(),
         }
