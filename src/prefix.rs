@@ -33,7 +33,7 @@ pub trait Prefix {
     }
 }
 
-fn prefix_end(mut bytes: Vec<u8>) -> Bound<Vec<u8>> {
+pub(crate) fn prefix_end(mut bytes: Vec<u8>) -> Bound<Vec<u8>> {
     for i in (0..bytes.len()).rev() {
         if bytes[i] != 0xff {
             bytes[i] += 1;
@@ -43,6 +43,16 @@ fn prefix_end(mut bytes: Vec<u8>) -> Bound<Vec<u8>> {
     }
 
     Bound::Unbounded
+}
+
+/// Takes an already encoded prefix and return its range, for testing purposes only.
+pub(crate) fn encoded_prefix_range(prefix: Vec<u8>) -> (Bound<Vec<u8>>, Bound<Vec<u8>>) {
+    if prefix.is_empty() {
+        return (Bound::Unbounded, Bound::Unbounded);
+    }
+
+    let right = prefix_end(prefix.clone());
+    (Bound::Included(prefix), right)
 }
 
 impl<K> Prefix for K
