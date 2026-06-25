@@ -532,7 +532,7 @@ mod tests {
                 )),
             },
             ScanCase {
-                name: "prefix range configures encoded prefix bounds",
+                name: "prefix range excluded upper bound uses encoded prefix",
                 setup: ScanSetup::PrefixRange {
                     left: Bound::Included(2),
                     right: Bound::Excluded(4),
@@ -543,6 +543,34 @@ mod tests {
                     Bound::Included(encode_index_prefix(2)),
                     Bound::Excluded(encode_index_prefix(4)),
                     Direction::RightToLeft,
+                )),
+            },
+            ScanCase {
+                name: "prefix range included upper bound uses prefix end",
+                setup: ScanSetup::PrefixRange {
+                    left: Bound::Included(2),
+                    right: Bound::Included(4),
+                },
+                direction: Direction::LeftToRight,
+                after: None,
+                expected: Ok(scan_log(
+                    Bound::Included(encode_index_prefix(2)),
+                    prefix_bounds(encode_index_prefix(4)).1,
+                    Direction::LeftToRight,
+                )),
+            },
+            ScanCase {
+                name: "prefix range excluded lower bound uses prefix end",
+                setup: ScanSetup::PrefixRange {
+                    left: Bound::Excluded(2),
+                    right: Bound::Excluded(4),
+                },
+                direction: Direction::LeftToRight,
+                after: None,
+                expected: Ok(scan_log(
+                    prefix_bounds(encode_index_prefix(2)).1,
+                    Bound::Excluded(encode_index_prefix(4)),
+                    Direction::LeftToRight,
                 )),
             },
             ScanCase {
@@ -569,8 +597,22 @@ mod tests {
                 after: None,
                 expected: Ok(scan_log(
                     Bound::Excluded(encode_store_key(2, 20)),
-                    Bound::Included(encode_index_prefix(4)),
+                    prefix_bounds(encode_index_prefix(4)).1,
                     Direction::RightToLeft,
+                )),
+            },
+            ScanCase {
+                name: "prefix-or-key range excluded prefix lower bound uses prefix end",
+                setup: ScanSetup::PrefixOrKeyRange {
+                    left: Bound::Excluded(RangeEndpoint::Prefix(2)),
+                    right: Bound::Excluded(RangeEndpoint::Prefix(4)),
+                },
+                direction: Direction::LeftToRight,
+                after: None,
+                expected: Ok(scan_log(
+                    prefix_bounds(encode_index_prefix(2)).1,
+                    Bound::Excluded(encode_index_prefix(4)),
+                    Direction::LeftToRight,
                 )),
             },
         ];
