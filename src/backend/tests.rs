@@ -1,4 +1,4 @@
-use crate::scan::{prefix_bounds, Direction};
+use crate::scan::Direction;
 use crate::store::{
     MultiStore, MultiStoreReadHandle, MultiStoreWriteHandle, ReadKVStore, WriteKVStore,
 };
@@ -65,6 +65,7 @@ macro_rules! multistore_contract_tests {
 }
 
 pub(crate) use multistore_contract_tests;
+use crate::prefix::encoded_prefix_range;
 
 pub(crate) fn basic_operations<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     let db = make_db();
@@ -323,61 +324,61 @@ pub(crate) fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
         ),
         ScanCase::new(
             "empty prefix left-to-right",
-            prefix_bounds(v(&[])),
+            encoded_prefix_range(v(&[])),
             Direction::LeftToRight,
             &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         ),
         ScanCase::new(
             "empty prefix right-to-left",
-            prefix_bounds(v(&[])),
+            encoded_prefix_range(v(&[])),
             Direction::RightToLeft,
             &[11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
         ),
         ScanCase::new(
             "prefix with exact key and descendants",
-            prefix_bounds(v(&[0])),
+            encoded_prefix_range(v(&[0])),
             Direction::LeftToRight,
             &[1, 2, 3],
         ),
         ScanCase::new(
             "reverse prefix with exact key and descendants",
-            prefix_bounds(v(&[1])),
+            encoded_prefix_range(v(&[1])),
             Direction::RightToLeft,
             &[5, 4],
         ),
         ScanCase::new(
             "prefix with descendants but no exact key",
-            prefix_bounds(v(&[3])),
+            encoded_prefix_range(v(&[3])),
             Direction::LeftToRight,
             &[7, 8],
         ),
         ScanCase::new(
             "reverse prefix with descendants but no exact key",
-            prefix_bounds(v(&[3])),
+            encoded_prefix_range(v(&[3])),
             Direction::RightToLeft,
             &[8, 7],
         ),
         ScanCase::new(
             "single-item prefix",
-            prefix_bounds(v(&[1, 0])),
+            encoded_prefix_range(v(&[1, 0])),
             Direction::LeftToRight,
             &[5],
         ),
         ScanCase::new(
             "prefix without finite upper bound",
-            prefix_bounds(v(&[255])),
+            encoded_prefix_range(v(&[255])),
             Direction::LeftToRight,
             &[10, 11],
         ),
         ScanCase::new(
             "reverse prefix without finite upper bound",
-            prefix_bounds(v(&[255])),
+            encoded_prefix_range(v(&[255])),
             Direction::RightToLeft,
             &[11, 10],
         ),
         ScanCase::new(
             "missing prefix",
-            prefix_bounds(v(&[4])),
+            encoded_prefix_range(v(&[4])),
             Direction::LeftToRight,
             &[],
         ),
