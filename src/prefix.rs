@@ -1,7 +1,38 @@
+use std::collections::Bound;
 use crate::key::Key;
 
 pub trait Prefix {
     fn encode_prefix(&self) -> Vec<u8>;
+
+    fn start_bound(&self) -> Bound<Vec<u8>> {
+        let bytes = self.encode_prefix();
+        if bytes.is_empty() {
+            return Bound::Unbounded;
+        }
+
+        Bound::Included(self.encode_prefix())
+    }
+
+    fn end_bound(&self) -> Bound<Vec<u8>> {
+        let bytes = self.encode_prefix();
+        if bytes.is_empty() {
+            return Bound::Unbounded;
+        }
+
+        prefix_end(bytes)
+    }
+}
+
+fn prefix_end(mut bytes: Vec<u8>) -> Bound<Vec<u8>> {
+    for i in (0..bytes.len()).rev() {
+        if bytes[i] != 0xff {
+            bytes[i] += 1;
+            bytes.truncate(i + 1);
+            return Bound::Excluded(bytes);
+        }
+    }
+
+    Bound::Unbounded
 }
 
 impl<K> Prefix for K
