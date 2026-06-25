@@ -8,6 +8,7 @@ use crate::store::{MultiStoreReadHandle, ReadKVStore};
 use std::marker::PhantomData;
 use std::ops::{Bound, Range};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     LeftToRight,
     RightToLeft,
