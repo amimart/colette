@@ -6,7 +6,7 @@ use crate::key::Key;
 use crate::prefix::{Prefix, Prefixable};
 use crate::store::{MultiStoreReadHandle, ReadKVStore};
 use std::marker::PhantomData;
-use std::ops::{Bound, Range};
+use std::ops::{Bound, Range, RangeBounds};
 
 type ScanBound = Bound<Vec<u8>>;
 type ScanBounds = (ScanBound, ScanBound);
@@ -55,42 +55,6 @@ fn prefix_end(bytes: &[u8]) -> ScanBound {
     }
 
     Bound::Unbounded
-}
-
-fn bounds_contain(left: &ScanBound, right: &ScanBound, cursor: &[u8]) -> bool {
-    left_contains(left, cursor) && right_contains(right, cursor)
-}
-
-fn left_contains(left: &ScanBound, cursor: &[u8]) -> bool {
-    match left {
-        Bound::Included(bound) => cursor >= bound.as_slice(),
-        Bound::Excluded(bound) => cursor > bound.as_slice(),
-        Bound::Unbounded => true,
-    }
-}
-
-fn right_contains(right: &ScanBound, cursor: &[u8]) -> bool {
-    match right {
-        Bound::Included(bound) => cursor <= bound.as_slice(),
-        Bound::Excluded(bound) => cursor < bound.as_slice(),
-        Bound::Unbounded => true,
-    }
-}
-
-fn apply_after(
-    left: ScanBound,
-    right: ScanBound,
-    direction: Direction,
-    cursor: Vec<u8>,
-) -> Result<ScanBounds, Error> {
-    if !bounds_contain(&left, &right, &cursor) {
-        return Err(Error::CursorOutOfBounds);
-    }
-
-    Ok(match direction {
-        Direction::LeftToRight => (Bound::Excluded(cursor), right),
-        Direction::RightToLeft => (left, Bound::Excluded(cursor)),
-    })
 }
 
 pub struct IndexScan<'a, ReadHandle, Record, Idx>
@@ -152,7 +116,7 @@ where
 
     pub fn iter(self) -> Result<IndexIterator<ReadHandle::Store, Record>, Error> {
         let (left, right) = match self.after {
-            Some(cursor) => apply_after(
+            Some(cursor) => Self::apply_cursor(
                 self.left,
                 self.right,
                 self.direction,
@@ -167,6 +131,22 @@ where
                 .scan((left, right), self.direction)?,
             self.read_handle.open_store(self.collection_name)?,
         ))
+    }
+
+    fn apply_cursor(
+        left: ScanBound,
+        right: ScanBound,
+        direction: Direction,
+        after: Vec<u8>,
+    ) -> Result<ScanBounds, Error> {
+        if !(left.as_ref(), right.as_ref()).contains(&after) {
+            return Err(Error::CursorOutOfBounds);
+        }
+
+        Ok(match direction {
+            Direction::LeftToRight => (Bound::Excluded(after), right),
+            Direction::RightToLeft => (left, Bound::Excluded(after)),
+        })
     }
 }
 
