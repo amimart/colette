@@ -89,6 +89,15 @@ impl RangeBounds<Vec<u8>> for ScanRange {
     }
 }
 
+pub(crate) fn prefix_bounds(prefix: Vec<u8>) -> (Bound<Vec<u8>>, Bound<Vec<u8>>) {
+    if prefix.is_empty() {
+        return (Bound::Unbounded, Bound::Unbounded);
+    }
+
+    let right = ScanRange::prefix_end(&prefix);
+    (Bound::Included(prefix), right)
+}
+
 pub struct IndexScan<'a, ReadHandle, Record, Idx>
 where
     Self: 'a,
@@ -99,7 +108,8 @@ where
 {
     collection_name: &'static str,
     read_handle: ReadHandle,
-    range: ScanRange,
+    left: Bound<Vec<u8>>,
+    right: Bound<Vec<u8>>,
     direction: Direction,
     after: Option<StoreKey<'a, 'a, Idx, Record::Key<'a>, Record>>,
 
@@ -117,7 +127,8 @@ where
         Self {
             collection_name,
             read_handle,
-            range: ScanRange::All,
+            left: Bound::Unbounded,
+            right: Bound::Unbounded,
             direction: Direction::LeftToRight,
             after: None,
 
@@ -129,10 +140,8 @@ where
         mut self,
         range: Range<Bound<StoreKey<'a, 'a, Idx, Record::Key<'a>, Record>>>,
     ) -> Self {
-        self.range = ScanRange::Range {
-            left: range.start.map(|p| p.encode().as_ref().to_vec()),
-            right: range.end.map(|p| p.encode().as_ref().to_vec()),
-        };
+        self.left = range.start.map(|p| p.encode().as_ref().to_vec());
+        self.right = range.end.map(|p| p.encode().as_ref().to_vec());
         self
     }
 
@@ -150,7 +159,7 @@ where
         Ok(IndexIterator::new(
             self.read_handle
                 .open_store(Idx::NAME)?
-                .scan(self.range, self.direction)?,
+                .scan((self.left, self.right), self.direction)?,
             self.read_handle.open_store(self.collection_name)?,
         ))
     }
@@ -176,15 +185,13 @@ where
     for<'b> Idx::Kind<'b>: IndexKind<Idx::Key<'b>, Record::Key<'b>>,
 {
     fn prefix(mut self, prefix: KeyPrefix) -> Self {
-        self.range = ScanRange::prefix(prefix.encode_prefix());
+        (self.left, self.right) = prefix_bounds(prefix.encode_prefix());
         self
     }
 
     fn prefix_range(mut self, range: Range<Bound<KeyPrefix>>) -> Self {
-        self.range = ScanRange::Range {
-            left: range.start.map(|p| p.encode_prefix()),
-            right: range.end.map(|p| p.encode_prefix()),
-        };
+        self.left = range.start.map(|p| p.encode_prefix());
+        self.right = range.end.map(|p| p.encode_prefix());
         self
     }
 
@@ -192,10 +199,8 @@ where
         mut self,
         range: Range<Bound<PrefixOrKey<StoreKey<'a, 'a, Idx, Record::Key<'a>, Record>, KeyPrefix>>>,
     ) -> Self {
-        self.range = ScanRange::Range {
-            left: range.start.map(|p| p.encode()),
-            right: range.end.map(|p| p.encode()),
-        };
+        self.left = range.start.map(|p| p.encode());
+        self.right = range.end.map(|p| p.encode());
         self
     }
 }
