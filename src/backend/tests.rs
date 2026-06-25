@@ -242,203 +242,203 @@ pub(crate) fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     db.prepare("scans", ["items"]).unwrap();
     commit_entries(&db, "scans", "items", &scan_entries());
 
-    assert_scan(
-        &db,
-        ScanRange::All,
-        Direction::LeftToRight,
-        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-    );
-    assert_scan(
-        &db,
-        ScanRange::All,
-        Direction::RightToLeft,
-        vec![11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Range {
-            left: Bound::Included(v(&[1])),
-            right: Bound::Unbounded,
-        },
-        Direction::LeftToRight,
-        vec![4, 5, 6, 7, 8, 9, 10, 11],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Range {
-            left: Bound::Excluded(v(&[1])),
-            right: Bound::Unbounded,
-        },
-        Direction::LeftToRight,
-        vec![5, 6, 7, 8, 9, 10, 11],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Range {
-            left: Bound::Unbounded,
-            right: Bound::Included(v(&[1])),
-        },
-        Direction::LeftToRight,
-        vec![0, 1, 2, 3, 4],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Range {
-            left: Bound::Unbounded,
-            right: Bound::Excluded(v(&[1])),
-        },
-        Direction::LeftToRight,
-        vec![0, 1, 2, 3],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Range {
-            left: Bound::Included(v(&[0, 1])),
-            right: Bound::Included(v(&[2])),
-        },
-        Direction::LeftToRight,
-        vec![3, 4, 5, 6],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Range {
-            left: Bound::Included(v(&[0, 1])),
-            right: Bound::Excluded(v(&[2])),
-        },
-        Direction::LeftToRight,
-        vec![3, 4, 5],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Range {
-            left: Bound::Excluded(v(&[0, 1])),
-            right: Bound::Included(v(&[2])),
-        },
-        Direction::LeftToRight,
-        vec![4, 5, 6],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Range {
-            left: Bound::Excluded(v(&[0, 1])),
-            right: Bound::Excluded(v(&[2])),
-        },
-        Direction::LeftToRight,
-        vec![4, 5],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Range {
-            left: Bound::Included(v(&[4])),
-            right: Bound::Included(v(&[5])),
-        },
-        Direction::LeftToRight,
-        vec![],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Range {
-            left: Bound::Included(v(&[1, 0])),
-            right: Bound::Included(v(&[1, 0])),
-        },
-        Direction::LeftToRight,
-        vec![5],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Range {
-            left: Bound::Included(v(&[0, 1])),
-            right: Bound::Included(v(&[2])),
-        },
-        Direction::RightToLeft,
-        vec![6, 5, 4, 3],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Prefix(v(&[])),
-        Direction::LeftToRight,
-        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Prefix(v(&[])),
-        Direction::RightToLeft,
-        vec![11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Prefix(v(&[0])),
-        Direction::LeftToRight,
-        vec![1, 2, 3],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Prefix(v(&[1])),
-        Direction::RightToLeft,
-        vec![5, 4],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Prefix(v(&[3])),
-        Direction::LeftToRight,
-        vec![7, 8],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Prefix(v(&[3])),
-        Direction::RightToLeft,
-        vec![8, 7],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Prefix(v(&[1, 0])),
-        Direction::LeftToRight,
-        vec![5],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Prefix(v(&[255])),
-        Direction::LeftToRight,
-        vec![10, 11],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Prefix(v(&[255])),
-        Direction::RightToLeft,
-        vec![11, 10],
-    );
-    assert_scan(
-        &db,
-        ScanRange::Prefix(v(&[4])),
-        Direction::LeftToRight,
-        vec![],
-    );
-
-    remove_and_commit(&db, "scans", "items", &[1, 0]);
-    assert_scan(
-        &db,
-        ScanRange::All,
-        Direction::LeftToRight,
-        vec![0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11],
-    );
-
-    assert_eq!(
-        scan(
-            &db,
-            "scans",
-            "items",
+    let cases = vec![
+        ScanCase::new(
+            "full scan left-to-right",
+            ScanRange::All,
+            Direction::LeftToRight,
+            &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        ),
+        ScanCase::new(
+            "full scan right-to-left",
+            ScanRange::All,
+            Direction::RightToLeft,
+            &[11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
+        ),
+        ScanCase::new(
+            "inclusive lower bound",
+            ScanRange::Range {
+                left: Bound::Included(v(&[1])),
+                right: Bound::Unbounded,
+            },
+            Direction::LeftToRight,
+            &[4, 5, 6, 7, 8, 9, 10, 11],
+        ),
+        ScanCase::new(
+            "exclusive lower bound",
+            ScanRange::Range {
+                left: Bound::Excluded(v(&[1])),
+                right: Bound::Unbounded,
+            },
+            Direction::LeftToRight,
+            &[5, 6, 7, 8, 9, 10, 11],
+        ),
+        ScanCase::new(
+            "inclusive upper bound",
+            ScanRange::Range {
+                left: Bound::Unbounded,
+                right: Bound::Included(v(&[1])),
+            },
+            Direction::LeftToRight,
+            &[0, 1, 2, 3, 4],
+        ),
+        ScanCase::new(
+            "exclusive upper bound",
+            ScanRange::Range {
+                left: Bound::Unbounded,
+                right: Bound::Excluded(v(&[1])),
+            },
+            Direction::LeftToRight,
+            &[0, 1, 2, 3],
+        ),
+        ScanCase::new(
+            "bounded inclusive/inclusive",
+            ScanRange::Range {
+                left: Bound::Included(v(&[0, 1])),
+                right: Bound::Included(v(&[2])),
+            },
+            Direction::LeftToRight,
+            &[3, 4, 5, 6],
+        ),
+        ScanCase::new(
+            "bounded inclusive/exclusive",
+            ScanRange::Range {
+                left: Bound::Included(v(&[0, 1])),
+                right: Bound::Excluded(v(&[2])),
+            },
+            Direction::LeftToRight,
+            &[3, 4, 5],
+        ),
+        ScanCase::new(
+            "bounded exclusive/inclusive",
+            ScanRange::Range {
+                left: Bound::Excluded(v(&[0, 1])),
+                right: Bound::Included(v(&[2])),
+            },
+            Direction::LeftToRight,
+            &[4, 5, 6],
+        ),
+        ScanCase::new(
+            "bounded exclusive/exclusive",
+            ScanRange::Range {
+                left: Bound::Excluded(v(&[0, 1])),
+                right: Bound::Excluded(v(&[2])),
+            },
+            Direction::LeftToRight,
+            &[4, 5],
+        ),
+        ScanCase::new(
+            "empty range",
+            ScanRange::Range {
+                left: Bound::Included(v(&[4])),
+                right: Bound::Included(v(&[5])),
+            },
+            Direction::LeftToRight,
+            &[],
+        ),
+        ScanCase::new(
+            "single-item range",
+            ScanRange::Range {
+                left: Bound::Included(v(&[1, 0])),
+                right: Bound::Included(v(&[1, 0])),
+            },
+            Direction::LeftToRight,
+            &[5],
+        ),
+        ScanCase::new(
+            "reverse scan with bounds",
+            ScanRange::Range {
+                left: Bound::Included(v(&[0, 1])),
+                right: Bound::Included(v(&[2])),
+            },
+            Direction::RightToLeft,
+            &[6, 5, 4, 3],
+        ),
+        ScanCase::new(
+            "empty prefix left-to-right",
+            ScanRange::Prefix(v(&[])),
+            Direction::LeftToRight,
+            &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        ),
+        ScanCase::new(
+            "empty prefix right-to-left",
+            ScanRange::Prefix(v(&[])),
+            Direction::RightToLeft,
+            &[11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
+        ),
+        ScanCase::new(
+            "prefix with exact key and descendants",
+            ScanRange::Prefix(v(&[0])),
+            Direction::LeftToRight,
+            &[1, 2, 3],
+        ),
+        ScanCase::new(
+            "reverse prefix with exact key and descendants",
+            ScanRange::Prefix(v(&[1])),
+            Direction::RightToLeft,
+            &[5, 4],
+        ),
+        ScanCase::new(
+            "prefix with descendants but no exact key",
+            ScanRange::Prefix(v(&[3])),
+            Direction::LeftToRight,
+            &[7, 8],
+        ),
+        ScanCase::new(
+            "reverse prefix with descendants but no exact key",
+            ScanRange::Prefix(v(&[3])),
+            Direction::RightToLeft,
+            &[8, 7],
+        ),
+        ScanCase::new(
+            "single-item prefix",
+            ScanRange::Prefix(v(&[1, 0])),
+            Direction::LeftToRight,
+            &[5],
+        ),
+        ScanCase::new(
+            "prefix without finite upper bound",
+            ScanRange::Prefix(v(&[255])),
+            Direction::LeftToRight,
+            &[10, 11],
+        ),
+        ScanCase::new(
+            "reverse prefix without finite upper bound",
+            ScanRange::Prefix(v(&[255])),
+            Direction::RightToLeft,
+            &[11, 10],
+        ),
+        ScanCase::new(
+            "missing prefix",
+            ScanRange::Prefix(v(&[4])),
+            Direction::LeftToRight,
+            &[],
+        ),
+        ScanCase::new(
+            "lexicographic byte ordering",
             ScanRange::Range {
                 left: Bound::Included(v(&[2])),
                 right: Bound::Included(v(&[10])),
             },
             Direction::LeftToRight,
-        )
-        .into_iter()
-        .map(|(key, _)| key)
-        .collect::<Vec<_>>(),
-        vec![v(&[2]), v(&[3, 0]), v(&[3, 1]), v(&[10])],
-        "scan ordering must be lexicographic byte ordering, not numeric ordering"
-    );
+            &[6, 7, 8, 9],
+        ),
+    ];
+
+    for case in cases {
+        assert_scan(&db, case);
+    }
+
+    remove_and_commit(&db, "scans", "items", &[1, 0]);
+
+    for case in [ScanCase::new(
+        "scan after remove",
+        ScanRange::All,
+        Direction::LeftToRight,
+        &[0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11],
+    )] {
+        assert_scan(&db, case);
+    }
 }
 
 fn commit_entries<DB: MultiStore>(
@@ -485,18 +485,42 @@ fn get<DB: MultiStore>(
         .unwrap()
 }
 
-fn assert_scan<DB: MultiStore>(
-    db: &DB,
+struct ScanCase {
+    name: &'static str,
     range: ScanRange,
     direction: Direction,
-    expected_indexes: Vec<usize>,
-) {
-    let expected = expected_indexes
+    expected_indexes: &'static [usize],
+}
+
+impl ScanCase {
+    fn new(
+        name: &'static str,
+        range: ScanRange,
+        direction: Direction,
+        expected_indexes: &'static [usize],
+    ) -> Self {
+        Self {
+            name,
+            range,
+            direction,
+            expected_indexes,
+        }
+    }
+}
+
+fn assert_scan<DB: MultiStore>(db: &DB, case: ScanCase) {
+    let expected = case
+        .expected_indexes
         .into_iter()
-        .map(|index| scan_entries()[index].clone())
+        .map(|index| scan_entries()[*index].clone())
         .collect::<Vec<_>>();
 
-    assert_eq!(scan(db, "scans", "items", range, direction), expected,);
+    assert_eq!(
+        scan(db, "scans", "items", case.range, case.direction),
+        expected,
+        "{}",
+        case.name,
+    );
 }
 
 fn scan<DB: MultiStore>(
