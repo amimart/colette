@@ -8,6 +8,9 @@ use crate::store::{MultiStoreReadHandle, ReadKVStore};
 use std::marker::PhantomData;
 use std::ops::{Bound, Range};
 
+type ScanBound = Bound<Vec<u8>>;
+type ScanBounds = (ScanBound, ScanBound);
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
     LeftToRight,
@@ -32,7 +35,7 @@ where
     }
 }
 
-pub(crate) fn prefix_bounds(prefix: Vec<u8>) -> (Bound<Vec<u8>>, Bound<Vec<u8>>) {
+pub(crate) fn prefix_bounds(prefix: Vec<u8>) -> ScanBounds {
     if prefix.is_empty() {
         return (Bound::Unbounded, Bound::Unbounded);
     }
@@ -41,7 +44,7 @@ pub(crate) fn prefix_bounds(prefix: Vec<u8>) -> (Bound<Vec<u8>>, Bound<Vec<u8>>)
     (Bound::Included(prefix), right)
 }
 
-fn prefix_end(bytes: &[u8]) -> Bound<Vec<u8>> {
+fn prefix_end(bytes: &[u8]) -> ScanBound {
     let mut out = bytes.to_vec();
     for i in (0..out.len()).rev() {
         if out[i] != 0xff {
@@ -54,6 +57,42 @@ fn prefix_end(bytes: &[u8]) -> Bound<Vec<u8>> {
     Bound::Unbounded
 }
 
+fn bounds_contain(left: &ScanBound, right: &ScanBound, cursor: &[u8]) -> bool {
+    left_contains(left, cursor) && right_contains(right, cursor)
+}
+
+fn left_contains(left: &ScanBound, cursor: &[u8]) -> bool {
+    match left {
+        Bound::Included(bound) => cursor >= bound.as_slice(),
+        Bound::Excluded(bound) => cursor > bound.as_slice(),
+        Bound::Unbounded => true,
+    }
+}
+
+fn right_contains(right: &ScanBound, cursor: &[u8]) -> bool {
+    match right {
+        Bound::Included(bound) => cursor <= bound.as_slice(),
+        Bound::Excluded(bound) => cursor < bound.as_slice(),
+        Bound::Unbounded => true,
+    }
+}
+
+fn apply_after(
+    left: ScanBound,
+    right: ScanBound,
+    direction: Direction,
+    cursor: Vec<u8>,
+) -> Result<ScanBounds, Error> {
+    if !bounds_contain(&left, &right, &cursor) {
+        return Err(Error::CursorOutOfBounds);
+    }
+
+    Ok(match direction {
+        Direction::LeftToRight => (Bound::Excluded(cursor), right),
+        Direction::RightToLeft => (left, Bound::Excluded(cursor)),
+    })
+}
+
 pub struct IndexScan<'a, ReadHandle, Record, Idx>
 where
     Self: 'a,
@@ -64,8 +103,8 @@ where
 {
     collection_name: &'static str,
     read_handle: ReadHandle,
-    left: Bound<Vec<u8>>,
-    right: Bound<Vec<u8>>,
+    left: ScanBound,
+    right: ScanBound,
     direction: Direction,
     after: Option<StoreKey<'a, 'a, Idx, Record::Key<'a>, Record>>,
 
@@ -112,10 +151,20 @@ where
     }
 
     pub fn iter(self) -> Result<IndexIterator<ReadHandle::Store, Record>, Error> {
+        let (left, right) = match self.after {
+            Some(cursor) => apply_after(
+                self.left,
+                self.right,
+                self.direction,
+                cursor.encode().as_ref().to_vec(),
+            )?,
+            None => (self.left, self.right),
+        };
+
         Ok(IndexIterator::new(
             self.read_handle
                 .open_store(Idx::NAME)?
-                .scan((self.left, self.right), self.direction)?,
+                .scan((left, right), self.direction)?,
             self.read_handle.open_store(self.collection_name)?,
         ))
     }
@@ -158,5 +207,296 @@ where
         self.left = range.start.map(|p| p.encode());
         self.right = range.end.map(|p| p.encode());
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::entity::Entity;
+    use crate::error::{CodecError, Error};
+    use crate::index::{Index, Multi};
+    use crate::key::Key;
+    use crate::store::MultiStore;
+    use crate::testing::{MockDb, ScanLog};
+
+    #[derive(Debug)]
+    struct Record {
+        id: u32,
+        indexed: u32,
+    }
+
+    impl Entity for Record {
+        type Key<'a> = u32;
+
+        fn key(&self) -> Self::Key<'_> {
+            self.id
+        }
+
+        fn to_bytes(&self) -> Result<Vec<u8>, CodecError> {
+            Ok(vec![])
+        }
+
+        fn from_bytes(_: &[u8]) -> Result<Self, CodecError> {
+            Ok(Self { id: 0, indexed: 0 })
+        }
+    }
+
+    struct ByNumber;
+
+    impl Index<Record> for ByNumber {
+        type Key<'a> = (u32,);
+        type Kind<'a> = Multi;
+        const NAME: &'static str = "number";
+
+        fn key(entity: &Record) -> Self::Key<'_> {
+            (entity.indexed,)
+        }
+    }
+
+    struct ScanCase {
+        name: &'static str,
+        setup: ScanSetup,
+        direction: Direction,
+        after: Option<(u32, u32)>,
+        expected: Result<ScanLog, ErrorKind>,
+    }
+
+    enum ScanSetup {
+        Range {
+            left: Bound<Vec<u8>>,
+            right: Bound<Vec<u8>>,
+        },
+        Prefix(u32),
+    }
+
+    #[derive(Debug, PartialEq, Eq)]
+    enum ErrorKind {
+        CursorOutOfBounds,
+    }
+
+    impl ScanCase {
+        fn assert(self) {
+            let db = MockDb::new();
+            let log = db.log();
+            let read = db.read("records").unwrap();
+
+            let scan = IndexScan::<_, Record, ByNumber>::new("records", read);
+            let scan = match self.setup {
+                ScanSetup::Range { left, right } => {
+                    scan.range(left.map(decode_store_key)..right.map(decode_store_key))
+                }
+                ScanSetup::Prefix(prefix) => scan.prefix(prefix),
+            }
+            .direction(self.direction);
+            let scan = match self.after {
+                Some((index, pk)) => scan.after(store_key(index, pk)),
+                None => scan,
+            };
+
+            let result = scan.iter();
+
+            match self.expected {
+                Ok(expected) => {
+                    result.unwrap();
+                    assert_eq!(log.borrow().scans, vec![expected], "{}", self.name);
+                }
+                Err(ErrorKind::CursorOutOfBounds) => {
+                    assert!(
+                        matches!(result, Err(Error::CursorOutOfBounds)),
+                        "{}",
+                        self.name
+                    );
+                    assert!(log.borrow().scans.is_empty(), "{}", self.name);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn applies_after_cursor_to_scan_bounds() {
+        let cases = vec![
+            ScanCase {
+                name: "no cursor keeps unbounded scan",
+                setup: range(Bound::Unbounded, Bound::Unbounded),
+                direction: Direction::LeftToRight,
+                after: None,
+                expected: Ok(scan_log(
+                    Bound::Unbounded,
+                    Bound::Unbounded,
+                    Direction::LeftToRight,
+                )),
+            },
+            ScanCase {
+                name: "left-to-right cursor tightens left bound",
+                setup: range(Bound::Unbounded, Bound::Unbounded),
+                direction: Direction::LeftToRight,
+                after: Some((2, 20)),
+                expected: Ok(scan_log(
+                    Bound::Excluded(encode_store_key(2, 20)),
+                    Bound::Unbounded,
+                    Direction::LeftToRight,
+                )),
+            },
+            ScanCase {
+                name: "right-to-left cursor tightens right bound",
+                setup: range(Bound::Unbounded, Bound::Unbounded),
+                direction: Direction::RightToLeft,
+                after: Some((2, 20)),
+                expected: Ok(scan_log(
+                    Bound::Unbounded,
+                    Bound::Excluded(encode_store_key(2, 20)),
+                    Direction::RightToLeft,
+                )),
+            },
+            ScanCase {
+                name: "cursor inside included range is valid",
+                setup: range(
+                    Bound::Included(encode_store_key(1, 10)),
+                    Bound::Included(encode_store_key(3, 30)),
+                ),
+                direction: Direction::LeftToRight,
+                after: Some((2, 20)),
+                expected: Ok(scan_log(
+                    Bound::Excluded(encode_store_key(2, 20)),
+                    Bound::Included(encode_store_key(3, 30)),
+                    Direction::LeftToRight,
+                )),
+            },
+            ScanCase {
+                name: "reverse cursor inside included range is valid",
+                setup: range(
+                    Bound::Included(encode_store_key(1, 10)),
+                    Bound::Included(encode_store_key(3, 30)),
+                ),
+                direction: Direction::RightToLeft,
+                after: Some((2, 20)),
+                expected: Ok(scan_log(
+                    Bound::Included(encode_store_key(1, 10)),
+                    Bound::Excluded(encode_store_key(2, 20)),
+                    Direction::RightToLeft,
+                )),
+            },
+            ScanCase {
+                name: "cursor on included left bound is valid",
+                setup: range(
+                    Bound::Included(encode_store_key(1, 10)),
+                    Bound::Included(encode_store_key(3, 30)),
+                ),
+                direction: Direction::LeftToRight,
+                after: Some((1, 10)),
+                expected: Ok(scan_log(
+                    Bound::Excluded(encode_store_key(1, 10)),
+                    Bound::Included(encode_store_key(3, 30)),
+                    Direction::LeftToRight,
+                )),
+            },
+            ScanCase {
+                name: "cursor on included right bound is valid",
+                setup: range(
+                    Bound::Included(encode_store_key(1, 10)),
+                    Bound::Included(encode_store_key(3, 30)),
+                ),
+                direction: Direction::RightToLeft,
+                after: Some((3, 30)),
+                expected: Ok(scan_log(
+                    Bound::Included(encode_store_key(1, 10)),
+                    Bound::Excluded(encode_store_key(3, 30)),
+                    Direction::RightToLeft,
+                )),
+            },
+            ScanCase {
+                name: "cursor below left bound fails",
+                setup: range(
+                    Bound::Included(encode_store_key(1, 10)),
+                    Bound::Included(encode_store_key(3, 30)),
+                ),
+                direction: Direction::LeftToRight,
+                after: Some((0, 10)),
+                expected: Err(ErrorKind::CursorOutOfBounds),
+            },
+            ScanCase {
+                name: "cursor above right bound fails",
+                setup: range(
+                    Bound::Included(encode_store_key(1, 10)),
+                    Bound::Included(encode_store_key(3, 30)),
+                ),
+                direction: Direction::RightToLeft,
+                after: Some((4, 10)),
+                expected: Err(ErrorKind::CursorOutOfBounds),
+            },
+            ScanCase {
+                name: "cursor on excluded left bound fails",
+                setup: range(
+                    Bound::Excluded(encode_store_key(1, 10)),
+                    Bound::Included(encode_store_key(3, 30)),
+                ),
+                direction: Direction::LeftToRight,
+                after: Some((1, 10)),
+                expected: Err(ErrorKind::CursorOutOfBounds),
+            },
+            ScanCase {
+                name: "cursor on excluded right bound fails",
+                setup: range(
+                    Bound::Included(encode_store_key(1, 10)),
+                    Bound::Excluded(encode_store_key(3, 30)),
+                ),
+                direction: Direction::RightToLeft,
+                after: Some((3, 30)),
+                expected: Err(ErrorKind::CursorOutOfBounds),
+            },
+            ScanCase {
+                name: "prefix cursor inside bounds is valid",
+                setup: ScanSetup::Prefix(2),
+                direction: Direction::LeftToRight,
+                after: Some((2, 20)),
+                expected: Ok(scan_log(
+                    Bound::Excluded(encode_store_key(2, 20)),
+                    prefix_bounds(encode_index_prefix(2)).1,
+                    Direction::LeftToRight,
+                )),
+            },
+            ScanCase {
+                name: "prefix cursor outside bounds fails",
+                setup: ScanSetup::Prefix(2),
+                direction: Direction::LeftToRight,
+                after: Some((3, 20)),
+                expected: Err(ErrorKind::CursorOutOfBounds),
+            },
+        ];
+
+        for case in cases {
+            case.assert();
+        }
+    }
+
+    fn scan_log(left: Bound<Vec<u8>>, right: Bound<Vec<u8>>, direction: Direction) -> ScanLog {
+        ScanLog {
+            left,
+            right,
+            direction,
+        }
+    }
+
+    fn range(left: Bound<Vec<u8>>, right: Bound<Vec<u8>>) -> ScanSetup {
+        ScanSetup::Range { left, right }
+    }
+
+    fn store_key(index: u32, pk: u32) -> StoreKey<'static, 'static, ByNumber, u32, Record> {
+        (index, Box::leak(Box::new(pk)))
+    }
+
+    fn encode_store_key(index: u32, pk: u32) -> Vec<u8> {
+        store_key(index, pk).encode().as_ref().to_vec()
+    }
+
+    fn encode_index_prefix(index: u32) -> Vec<u8> {
+        (index,).encode().as_ref().to_vec()
+    }
+
+    fn decode_store_key(bytes: Vec<u8>) -> StoreKey<'static, 'static, ByNumber, u32, Record> {
+        let (index, rest) = u32::decode_part(&bytes);
+        let (pk, _) = u32::decode_part(rest);
+        store_key(index, pk)
     }
 }
