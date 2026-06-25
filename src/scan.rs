@@ -22,16 +22,53 @@ pub enum PrefixOrKey<K: Key + Prefixable<P>, P: Prefix> {
     Key(K),
 }
 
-impl<K, P> PrefixOrKey<K, P>
+fn prefix_left_bound<P: Prefix>(bound: Bound<P>) -> ScanBound {
+    match bound {
+        Bound::Included(prefix) => prefix.start_bound(),
+        Bound::Excluded(prefix) => prefix.end_bound(),
+        Bound::Unbounded => Bound::Unbounded,
+    }
+}
+
+fn prefix_right_bound<P: Prefix>(bound: Bound<P>) -> ScanBound {
+    match bound {
+        Bound::Included(prefix) => prefix.end_bound(),
+        Bound::Excluded(prefix) => match prefix.start_bound() {
+            Bound::Included(bytes) | Bound::Excluded(bytes) => Bound::Excluded(bytes),
+            Bound::Unbounded => Bound::Unbounded,
+        },
+        Bound::Unbounded => Bound::Unbounded,
+    }
+}
+
+fn prefix_or_key_left_bound<K, P>(bound: Bound<PrefixOrKey<K, P>>) -> ScanBound
 where
     K: Key + Prefixable<P>,
     P: Prefix,
 {
-    fn encode(&self) -> Vec<u8> {
-        match self {
-            PrefixOrKey::Prefix(p) => p.encode_prefix(),
-            PrefixOrKey::Key(k) => k.encode().as_ref().to_vec(),
-        }
+    match bound {
+        Bound::Included(PrefixOrKey::Prefix(prefix)) => prefix.start_bound(),
+        Bound::Excluded(PrefixOrKey::Prefix(prefix)) => prefix.end_bound(),
+        Bound::Included(PrefixOrKey::Key(key)) => Bound::Included(key.encode().as_ref().to_vec()),
+        Bound::Excluded(PrefixOrKey::Key(key)) => Bound::Excluded(key.encode().as_ref().to_vec()),
+        Bound::Unbounded => Bound::Unbounded,
+    }
+}
+
+fn prefix_or_key_right_bound<K, P>(bound: Bound<PrefixOrKey<K, P>>) -> ScanBound
+where
+    K: Key + Prefixable<P>,
+    P: Prefix,
+{
+    match bound {
+        Bound::Included(PrefixOrKey::Prefix(prefix)) => prefix.end_bound(),
+        Bound::Excluded(PrefixOrKey::Prefix(prefix)) => match prefix.start_bound() {
+            Bound::Included(bytes) | Bound::Excluded(bytes) => Bound::Excluded(bytes),
+            Bound::Unbounded => Bound::Unbounded,
+        },
+        Bound::Included(PrefixOrKey::Key(key)) => Bound::Included(key.encode().as_ref().to_vec()),
+        Bound::Excluded(PrefixOrKey::Key(key)) => Bound::Excluded(key.encode().as_ref().to_vec()),
+        Bound::Unbounded => Bound::Unbounded,
     }
 }
 
@@ -154,8 +191,8 @@ where
     }
 
     fn prefix_range(mut self, range: Range<Bound<KeyPrefix>>) -> Self {
-        self.left = range.start.map(|p| p.encode_prefix());
-        self.right = range.end.map(|p| p.encode_prefix());
+        self.left = prefix_left_bound(range.start);
+        self.right = prefix_right_bound(range.end);
         self
     }
 
@@ -163,8 +200,8 @@ where
         mut self,
         range: Range<Bound<PrefixOrKey<StoreKey<'a, 'a, Idx, Record::Key<'a>, Record>, KeyPrefix>>>,
     ) -> Self {
-        self.left = range.start.map(|p| p.encode());
-        self.right = range.end.map(|p| p.encode());
+        self.left = prefix_or_key_left_bound(range.start);
+        self.right = prefix_or_key_right_bound(range.end);
         self
     }
 }
