@@ -6,12 +6,13 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::ops::RangeBounds;
 use std::rc::Rc;
 
 use crate::entity::Entity;
 use crate::error::{BackendError, Error};
 use crate::index_registry::IndexRegistry;
-use crate::scan::{Direction, ScanRange};
+use crate::scan::Direction;
 use crate::store::{
     MultiStore, MultiStoreReadHandle, MultiStoreWriteHandle, ReadKVStore, ReadWriteKVStore,
     WriteKVStore,
@@ -64,7 +65,7 @@ impl ReadKVStore for MockStore {
         Ok(self.data.get(&key).cloned())
     }
 
-    fn scan(self, _: ScanRange, _: Direction) -> Result<Self::Iter, BackendError> {
+    fn scan(self, _: impl RangeBounds<Vec<u8>>, _: Direction) -> Result<Self::Iter, BackendError> {
         Ok(std::iter::empty())
     }
 }

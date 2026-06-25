@@ -100,8 +100,9 @@ mod tests {
     use super::*;
     use crate::error::{BackendError, CodecError, Error};
     use crate::index::Unique;
-    use crate::scan::{Direction, ScanRange};
+    use crate::scan::Direction;
     use crate::store::{MultiStoreWriteHandle, ReadKVStore, ReadWriteKVStore, WriteKVStore};
+    use std::ops::RangeBounds;
 
     // ── Minimal entity ────────────────────────────────────────────────────────
 
@@ -199,7 +200,11 @@ mod tests {
         fn get(&self, _: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError> {
             Ok(None)
         }
-        fn scan(self, _: ScanRange, _: Direction) -> Result<Self::Iter, BackendError> {
+        fn scan(
+            self,
+            _: impl RangeBounds<Vec<u8>>,
+            _: Direction,
+        ) -> Result<Self::Iter, BackendError> {
             Ok(std::iter::empty())
         }
     }
