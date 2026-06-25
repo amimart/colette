@@ -1,3 +1,4 @@
+pub mod backend;
 pub mod collection;
 pub mod entity;
 pub mod error;

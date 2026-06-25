@@ -50,13 +50,15 @@ where
         let enc_pk = pk.encode();
 
         let mut tx = self.db.write(self.name)?;
-        let mut store = tx.open_store(Self::MAIN_STORE)?;
+        {
+            let mut store = tx.open_store(Self::MAIN_STORE)?;
 
-        if store.get(&enc_pk)?.is_some() {
-            Err(Error::AlreadyExists(format!("{:?}", pk)))?
+            if store.get(&enc_pk)?.is_some() {
+                Err(Error::AlreadyExists(format!("{:?}", pk)))?
+            }
+
+            store.set(&enc_pk, &value.to_bytes()?)?;
         }
-
-        store.set(&enc_pk, &value.to_bytes()?)?;
 
         Indexes::update(&mut tx, &pk, None, value)?;
 
@@ -74,18 +76,21 @@ where
         let enc_pk = pk.encode();
 
         let mut tx = self.db.write(self.name)?;
-        let mut store = tx.open_store(Self::MAIN_STORE)?;
+        let old = {
+            let mut store = tx.open_store(Self::MAIN_STORE)?;
 
-        let old = store
-            .get(&enc_pk)?
-            .map(|bytes| Record::from_bytes(&bytes).map_err(Error::Codec))
-            .transpose()?;
+            let old = store
+                .get(&enc_pk)?
+                .map(|bytes| Record::from_bytes(&bytes).map_err(Error::Codec))
+                .transpose()?;
 
-        if old.is_none() {
-            Err(Error::NotFound(format!("{:?}", pk)))?
-        }
+            if old.is_none() {
+                Err(Error::NotFound(format!("{:?}", pk)))?
+            }
 
-        store.set(&enc_pk, &value.to_bytes()?)?;
+            store.set(&enc_pk, &value.to_bytes()?)?;
+            old
+        };
 
         Indexes::update(&mut tx, &pk, old.as_ref(), value)?;
 
@@ -104,14 +109,17 @@ where
         let enc_pk = pk.encode();
 
         let mut tx = self.db.write(self.name)?;
-        let mut store = tx.open_store(Self::MAIN_STORE)?;
+        let old = {
+            let mut store = tx.open_store(Self::MAIN_STORE)?;
 
-        let old = store
-            .get(&enc_pk)?
-            .map(|bytes| Record::from_bytes(&bytes).map_err(Error::Codec))
-            .transpose()?;
+            let old = store
+                .get(&enc_pk)?
+                .map(|bytes| Record::from_bytes(&bytes).map_err(Error::Codec))
+                .transpose()?;
 
-        store.set(&enc_pk, &value.to_bytes()?)?;
+            store.set(&enc_pk, &value.to_bytes()?)?;
+            old
+        };
 
         Indexes::update(&mut tx, &pk, old.as_ref(), value)?;
 
@@ -134,19 +142,22 @@ where
         let enc_pk = pk.encode();
 
         let mut tx = self.db.write(self.name)?;
-        let mut store = tx.open_store(Self::MAIN_STORE)?;
+        let record = {
+            let mut store = tx.open_store(Self::MAIN_STORE)?;
 
-        let record = store
-            .get(enc_pk)?
-            .map(|bytes| Record::from_bytes(&bytes).map_err(Error::Codec))
-            .transpose()?;
+            let record = store
+                .get(enc_pk)?
+                .map(|bytes| Record::from_bytes(&bytes).map_err(Error::Codec))
+                .transpose()?;
 
-        let record = match record {
-            Some(record) => record,
-            None => return Ok(()),
+            let record = match record {
+                Some(record) => record,
+                None => return Ok(()),
+            };
+
+            store.remove(key.borrow().encode())?;
+            record
         };
-
-        store.remove(key.borrow().encode())?;
 
         Indexes::remove(&mut tx, &record.key(), &record)?;
 
