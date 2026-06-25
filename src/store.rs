@@ -1,5 +1,6 @@
 use crate::error::BackendError;
-use crate::scan::{Direction, ScanRange};
+use crate::scan::Direction;
+use std::ops::RangeBounds;
 
 pub trait MultiStore {
     type ReadHandle: MultiStoreReadHandle;
@@ -50,5 +51,9 @@ pub trait ReadKVStore {
 
     fn get(&self, key: impl AsRef<[u8]>) -> Result<Option<Vec<u8>>, BackendError>;
 
-    fn scan(self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError>;
+    fn scan(
+        self,
+        range: impl RangeBounds<Vec<u8>>,
+        direction: Direction,
+    ) -> Result<Self::Iter, BackendError>;
 }

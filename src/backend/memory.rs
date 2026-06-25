@@ -1,10 +1,11 @@
 use crate::error::BackendError;
-use crate::scan::{Direction, ScanRange};
+use crate::scan::Direction;
 use crate::store::{
     MultiStore, MultiStoreReadHandle, MultiStoreWriteHandle, ReadKVStore, ReadWriteKVStore,
     WriteKVStore,
 };
 use std::collections::BTreeMap;
+use std::ops::RangeBounds;
 use std::sync::{Arc, RwLock};
 use std::vec::IntoIter;
 
@@ -105,7 +106,11 @@ impl ReadKVStore for InMemoryReadStore {
         Ok(self.store.get(key.as_ref()).cloned())
     }
 
-    fn scan(self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError> {
+    fn scan(
+        self,
+        range: impl RangeBounds<Vec<u8>>,
+        direction: Direction,
+    ) -> Result<Self::Iter, BackendError> {
         let scan: ScanResults = match direction {
             Direction::LeftToRight => self
                 .store
@@ -177,7 +182,11 @@ impl ReadKVStore for InMemoryWriteStore<'_> {
         Ok(self.store.get(key.as_ref()).map(|v| v.to_owned()))
     }
 
-    fn scan(self, range: ScanRange, direction: Direction) -> Result<Self::Iter, BackendError> {
+    fn scan(
+        self,
+        range: impl RangeBounds<Vec<u8>>,
+        direction: Direction,
+    ) -> Result<Self::Iter, BackendError> {
         let scan: ScanResults = match direction {
             Direction::LeftToRight => self
                 .store

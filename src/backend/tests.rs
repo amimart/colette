@@ -1,8 +1,8 @@
-use crate::scan::{Direction, ScanRange};
+use crate::scan::{prefix_bounds, Direction};
 use crate::store::{
     MultiStore, MultiStoreReadHandle, MultiStoreWriteHandle, ReadKVStore, WriteKVStore,
 };
-use std::ops::Bound;
+use std::ops::{Bound, RangeBounds};
 
 #[allow(dead_code)]
 pub fn run_multistore_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
@@ -245,181 +245,145 @@ pub(crate) fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     let cases = vec![
         ScanCase::new(
             "full scan left-to-right",
-            ScanRange::All,
+            (Bound::Unbounded, Bound::Unbounded),
             Direction::LeftToRight,
             &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         ),
         ScanCase::new(
             "full scan right-to-left",
-            ScanRange::All,
+            (Bound::Unbounded, Bound::Unbounded),
             Direction::RightToLeft,
             &[11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
         ),
         ScanCase::new(
             "inclusive lower bound",
-            ScanRange::Range {
-                left: Bound::Included(v(&[1])),
-                right: Bound::Unbounded,
-            },
+            (Bound::Included(v(&[1])), Bound::Unbounded),
             Direction::LeftToRight,
             &[4, 5, 6, 7, 8, 9, 10, 11],
         ),
         ScanCase::new(
             "exclusive lower bound",
-            ScanRange::Range {
-                left: Bound::Excluded(v(&[1])),
-                right: Bound::Unbounded,
-            },
+            (Bound::Excluded(v(&[1])), Bound::Unbounded),
             Direction::LeftToRight,
             &[5, 6, 7, 8, 9, 10, 11],
         ),
         ScanCase::new(
             "inclusive upper bound",
-            ScanRange::Range {
-                left: Bound::Unbounded,
-                right: Bound::Included(v(&[1])),
-            },
+            (Bound::Unbounded, Bound::Included(v(&[1]))),
             Direction::LeftToRight,
             &[0, 1, 2, 3, 4],
         ),
         ScanCase::new(
             "exclusive upper bound",
-            ScanRange::Range {
-                left: Bound::Unbounded,
-                right: Bound::Excluded(v(&[1])),
-            },
+            (Bound::Unbounded, Bound::Excluded(v(&[1]))),
             Direction::LeftToRight,
             &[0, 1, 2, 3],
         ),
         ScanCase::new(
             "bounded inclusive/inclusive",
-            ScanRange::Range {
-                left: Bound::Included(v(&[0, 1])),
-                right: Bound::Included(v(&[2])),
-            },
+            (Bound::Included(v(&[0, 1])), Bound::Included(v(&[2]))),
             Direction::LeftToRight,
             &[3, 4, 5, 6],
         ),
         ScanCase::new(
             "bounded inclusive/exclusive",
-            ScanRange::Range {
-                left: Bound::Included(v(&[0, 1])),
-                right: Bound::Excluded(v(&[2])),
-            },
+            (Bound::Included(v(&[0, 1])), Bound::Excluded(v(&[2]))),
             Direction::LeftToRight,
             &[3, 4, 5],
         ),
         ScanCase::new(
             "bounded exclusive/inclusive",
-            ScanRange::Range {
-                left: Bound::Excluded(v(&[0, 1])),
-                right: Bound::Included(v(&[2])),
-            },
+            (Bound::Excluded(v(&[0, 1])), Bound::Included(v(&[2]))),
             Direction::LeftToRight,
             &[4, 5, 6],
         ),
         ScanCase::new(
             "bounded exclusive/exclusive",
-            ScanRange::Range {
-                left: Bound::Excluded(v(&[0, 1])),
-                right: Bound::Excluded(v(&[2])),
-            },
+            (Bound::Excluded(v(&[0, 1])), Bound::Excluded(v(&[2]))),
             Direction::LeftToRight,
             &[4, 5],
         ),
         ScanCase::new(
             "empty range",
-            ScanRange::Range {
-                left: Bound::Included(v(&[4])),
-                right: Bound::Included(v(&[5])),
-            },
+            (Bound::Included(v(&[4])), Bound::Included(v(&[5]))),
             Direction::LeftToRight,
             &[],
         ),
         ScanCase::new(
             "single-item range",
-            ScanRange::Range {
-                left: Bound::Included(v(&[1, 0])),
-                right: Bound::Included(v(&[1, 0])),
-            },
+            (Bound::Included(v(&[1, 0])), Bound::Included(v(&[1, 0]))),
             Direction::LeftToRight,
             &[5],
         ),
         ScanCase::new(
             "reverse scan with bounds",
-            ScanRange::Range {
-                left: Bound::Included(v(&[0, 1])),
-                right: Bound::Included(v(&[2])),
-            },
+            (Bound::Included(v(&[0, 1])), Bound::Included(v(&[2]))),
             Direction::RightToLeft,
             &[6, 5, 4, 3],
         ),
         ScanCase::new(
             "empty prefix left-to-right",
-            ScanRange::prefix(v(&[])),
+            prefix_bounds(v(&[])),
             Direction::LeftToRight,
             &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         ),
         ScanCase::new(
             "empty prefix right-to-left",
-            ScanRange::prefix(v(&[])),
+            prefix_bounds(v(&[])),
             Direction::RightToLeft,
             &[11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
         ),
         ScanCase::new(
             "prefix with exact key and descendants",
-            ScanRange::prefix(v(&[0])),
+            prefix_bounds(v(&[0])),
             Direction::LeftToRight,
             &[1, 2, 3],
         ),
         ScanCase::new(
             "reverse prefix with exact key and descendants",
-            ScanRange::prefix(v(&[1])),
+            prefix_bounds(v(&[1])),
             Direction::RightToLeft,
             &[5, 4],
         ),
         ScanCase::new(
             "prefix with descendants but no exact key",
-            ScanRange::prefix(v(&[3])),
+            prefix_bounds(v(&[3])),
             Direction::LeftToRight,
             &[7, 8],
         ),
         ScanCase::new(
             "reverse prefix with descendants but no exact key",
-            ScanRange::prefix(v(&[3])),
+            prefix_bounds(v(&[3])),
             Direction::RightToLeft,
             &[8, 7],
         ),
         ScanCase::new(
             "single-item prefix",
-            ScanRange::prefix(v(&[1, 0])),
+            prefix_bounds(v(&[1, 0])),
             Direction::LeftToRight,
             &[5],
         ),
         ScanCase::new(
             "prefix without finite upper bound",
-            ScanRange::prefix(v(&[255])),
+            prefix_bounds(v(&[255])),
             Direction::LeftToRight,
             &[10, 11],
         ),
         ScanCase::new(
             "reverse prefix without finite upper bound",
-            ScanRange::prefix(v(&[255])),
+            prefix_bounds(v(&[255])),
             Direction::RightToLeft,
             &[11, 10],
         ),
         ScanCase::new(
             "missing prefix",
-            ScanRange::prefix(v(&[4])),
+            prefix_bounds(v(&[4])),
             Direction::LeftToRight,
             &[],
         ),
         ScanCase::new(
             "lexicographic byte ordering",
-            ScanRange::Range {
-                left: Bound::Included(v(&[2])),
-                right: Bound::Included(v(&[10])),
-            },
+            (Bound::Included(v(&[2])), Bound::Included(v(&[10]))),
             Direction::LeftToRight,
             &[6, 7, 8, 9],
         ),
@@ -433,7 +397,7 @@ pub(crate) fn scans<DB: MultiStore>(make_db: &impl Fn() -> DB) {
 
     for case in [ScanCase::new(
         "scan after remove",
-        ScanRange::All,
+        (Bound::Unbounded, Bound::Unbounded),
         Direction::LeftToRight,
         &[0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11],
     )] {
@@ -487,7 +451,8 @@ fn get<DB: MultiStore>(
 
 struct ScanCase {
     name: &'static str,
-    range: ScanRange,
+    left: Bound<Vec<u8>>,
+    right: Bound<Vec<u8>>,
     direction: Direction,
     expected_indexes: &'static [usize],
 }
@@ -495,13 +460,15 @@ struct ScanCase {
 impl ScanCase {
     fn new(
         name: &'static str,
-        range: ScanRange,
+        range: (Bound<Vec<u8>>, Bound<Vec<u8>>),
         direction: Direction,
         expected_indexes: &'static [usize],
     ) -> Self {
+        let (left, right) = range;
         Self {
             name,
-            range,
+            left,
+            right,
             direction,
             expected_indexes,
         }
@@ -515,7 +482,13 @@ impl ScanCase {
             .collect::<Vec<_>>();
 
         assert_eq!(
-            scan(db, "scans", "items", self.range, self.direction),
+            scan(
+                db,
+                "scans",
+                "items",
+                (self.left, self.right),
+                self.direction
+            ),
             expected,
             "{}",
             self.name,
@@ -527,7 +500,7 @@ fn scan<DB: MultiStore>(
     db: &DB,
     namespace: &'static str,
     store: &'static str,
-    range: ScanRange,
+    range: impl RangeBounds<Vec<u8>>,
     direction: Direction,
 ) -> Vec<(Vec<u8>, Vec<u8>)> {
     db.read(namespace)
