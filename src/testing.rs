@@ -6,7 +6,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::ops::RangeBounds;
+use std::ops::{Bound, RangeBounds};
 use std::rc::Rc;
 
 use crate::entity::Entity;
@@ -43,8 +43,17 @@ pub struct TxLog {
     pub sets: Vec<(Vec<u8>, Vec<u8>)>,
     /// Raw keys passed to `remove` (in call order).
     pub removes: Vec<Vec<u8>>,
+    /// Ranges passed to `scan` (in call order).
+    pub scans: Vec<ScanLog>,
     /// Whether `commit` was called on the write handle.
     pub committed: bool,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ScanLog {
+    pub left: Bound<Vec<u8>>,
+    pub right: Bound<Vec<u8>>,
+    pub direction: Direction,
 }
 
 // ── MockStore ─────────────────────────────────────────────────────────────────
@@ -65,7 +74,16 @@ impl ReadKVStore for MockStore {
         Ok(self.data.get(&key).cloned())
     }
 
-    fn scan(self, _: impl RangeBounds<Vec<u8>>, _: Direction) -> Result<Self::Iter, BackendError> {
+    fn scan(
+        self,
+        range: impl RangeBounds<Vec<u8>>,
+        direction: Direction,
+    ) -> Result<Self::Iter, BackendError> {
+        self.log.borrow_mut().scans.push(ScanLog {
+            left: range.start_bound().cloned(),
+            right: range.end_bound().cloned(),
+            direction,
+        });
         Ok(std::iter::empty())
     }
 }

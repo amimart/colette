@@ -8,6 +8,9 @@ pub enum Error {
     #[error("key not found: {0}")]
     NotFound(String),
 
+    #[error("cursor is outside scan bounds")]
+    CursorOutOfBounds,
+
     #[error("backend error: {0}")]
     Backend(#[from] BackendError),
 
