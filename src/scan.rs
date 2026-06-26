@@ -3,7 +3,7 @@ use crate::error::Error;
 use crate::index::{Index, IndexKind, StoreKey};
 use crate::iter::IndexIterator;
 use crate::key::Key;
-use crate::prefix::{Prefix, Prefixable};
+use crate::prefix::{Prefix, PrefixOrKey, Prefixable};
 use crate::store::{MultiStoreReadHandle, ReadKVStore};
 use std::marker::PhantomData;
 use std::ops::{Bound, Range, RangeBounds};
@@ -13,11 +13,6 @@ use crate::bounds::{IntoScanBounds, ScanBound, ScanRange};
 pub enum Direction {
     LeftToRight,
     RightToLeft,
-}
-
-pub enum PrefixOrKey<K: Key + Prefixable<P>, P: Prefix> {
-    Prefix(P),
-    Key(K),
 }
 
 fn prefix_left_bound<P: Prefix>(bound: Bound<P>) -> ScanBound {

@@ -58,6 +58,11 @@ where
     }
 }
 
+pub enum PrefixOrKey<K: Key + Prefixable<P>, P: Prefix> {
+    Prefix(P),
+    Key(K),
+}
+
 pub trait Prefixable<P>
 where
     P: Prefix,
