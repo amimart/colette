@@ -15,25 +15,6 @@ pub enum Direction {
     RightToLeft,
 }
 
-fn prefix_left_bound<P: Prefix>(bound: Bound<P>) -> ScanBound {
-    match bound {
-        Bound::Included(prefix) => prefix.start_bound(),
-        Bound::Excluded(prefix) => prefix.end_bound(),
-        Bound::Unbounded => Bound::Unbounded,
-    }
-}
-
-fn prefix_right_bound<P: Prefix>(bound: Bound<P>) -> ScanBound {
-    match bound {
-        Bound::Included(prefix) => prefix.end_bound(),
-        Bound::Excluded(prefix) => match prefix.start_bound() {
-            Bound::Included(bytes) | Bound::Excluded(bytes) => Bound::Excluded(bytes),
-            Bound::Unbounded => Bound::Unbounded,
-        },
-        Bound::Unbounded => Bound::Unbounded,
-    }
-}
-
 fn prefix_or_key_left_bound<K, P>(bound: Bound<PrefixOrKey<K, P>>) -> ScanBound
 where
     K: Key + Prefixable<P>,
@@ -184,8 +165,8 @@ where
     }
 
     fn prefix_range(mut self, range: Range<Bound<KeyPrefix>>) -> Self {
-        self.left = prefix_left_bound(range.start);
-        self.right = prefix_right_bound(range.end);
+        self.left = range.start.start_bound();
+        self.right = range.end.end_bound();
         self
     }
 
