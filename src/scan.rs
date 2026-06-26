@@ -15,37 +15,6 @@ pub enum Direction {
     RightToLeft,
 }
 
-fn prefix_or_key_left_bound<K, P>(bound: Bound<PrefixOrKey<K, P>>) -> ScanBound
-where
-    K: Key + Prefixable<P>,
-    P: Prefix,
-{
-    match bound {
-        Bound::Included(PrefixOrKey::Prefix(prefix)) => prefix.start_bound(),
-        Bound::Excluded(PrefixOrKey::Prefix(prefix)) => prefix.end_bound(),
-        Bound::Included(PrefixOrKey::Key(key)) => Bound::Included(key.encode().as_ref().to_vec()),
-        Bound::Excluded(PrefixOrKey::Key(key)) => Bound::Excluded(key.encode().as_ref().to_vec()),
-        Bound::Unbounded => Bound::Unbounded,
-    }
-}
-
-fn prefix_or_key_right_bound<K, P>(bound: Bound<PrefixOrKey<K, P>>) -> ScanBound
-where
-    K: Key + Prefixable<P>,
-    P: Prefix,
-{
-    match bound {
-        Bound::Included(PrefixOrKey::Prefix(prefix)) => prefix.end_bound(),
-        Bound::Excluded(PrefixOrKey::Prefix(prefix)) => match prefix.start_bound() {
-            Bound::Included(bytes) | Bound::Excluded(bytes) => Bound::Excluded(bytes),
-            Bound::Unbounded => Bound::Unbounded,
-        },
-        Bound::Included(PrefixOrKey::Key(key)) => Bound::Included(key.encode().as_ref().to_vec()),
-        Bound::Excluded(PrefixOrKey::Key(key)) => Bound::Excluded(key.encode().as_ref().to_vec()),
-        Bound::Unbounded => Bound::Unbounded,
-    }
-}
-
 pub struct IndexScan<'a, ReadHandle, Record, Idx>
 where
     Self: 'a,
@@ -174,8 +143,8 @@ where
         mut self,
         range: Range<Bound<PrefixOrKey<StoreKey<'a, 'a, Idx, Record::Key<'a>, Record>, KeyPrefix>>>,
     ) -> Self {
-        self.left = prefix_or_key_left_bound(range.start);
-        self.right = prefix_or_key_right_bound(range.end);
+        self.left = range.start.start_bound();
+        self.right = range.end.end_bound();
         self
     }
 }
