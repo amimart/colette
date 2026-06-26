@@ -1,3 +1,4 @@
+use crate::bounds::{IntoScanBounds, ScanBound, ScanRange};
 use crate::entity::Entity;
 use crate::error::Error;
 use crate::index::{Index, IndexKind, StoreKey};
@@ -7,7 +8,6 @@ use crate::prefix::{Prefix, PrefixOrKey, Prefixable};
 use crate::store::{MultiStoreReadHandle, ReadKVStore};
 use std::marker::PhantomData;
 use std::ops::{Bound, Range, RangeBounds};
-use crate::bounds::{IntoScanBounds, ScanBound, ScanRange};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {

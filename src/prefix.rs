@@ -1,6 +1,6 @@
+use crate::bounds::IntoScanBounds;
 use crate::key::Key;
 use std::ops::Bound;
-use crate::bounds::IntoScanBounds;
 
 pub trait Prefix {
     fn encode_prefix(&self) -> Vec<u8>;

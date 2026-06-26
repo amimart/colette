@@ -12,6 +12,6 @@ pub mod prefix;
 pub mod scan;
 pub mod store;
 
+pub mod bounds;
 #[cfg(test)]
 pub mod testing;
-pub mod bounds;
