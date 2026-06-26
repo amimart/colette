@@ -7,9 +7,7 @@ use crate::prefix::{Prefix, Prefixable};
 use crate::store::{MultiStoreReadHandle, ReadKVStore};
 use std::marker::PhantomData;
 use std::ops::{Bound, Range, RangeBounds};
-
-type ScanBound = Bound<Vec<u8>>;
-type ScanBounds = (ScanBound, ScanBound);
+use crate::bounds::{ScanBound, ScanRange};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {
@@ -153,7 +151,7 @@ where
         right: ScanBound,
         direction: Direction,
         after: Vec<u8>,
-    ) -> Result<ScanBounds, Error> {
+    ) -> Result<ScanRange, Error> {
         if !(left.as_ref(), right.as_ref()).contains(&after) {
             return Err(Error::CursorOutOfBounds);
         }

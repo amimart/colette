@@ -14,3 +14,4 @@ pub mod store;
 
 #[cfg(test)]
 pub mod testing;
+pub mod bounds;
