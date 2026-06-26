@@ -7,7 +7,7 @@ use crate::prefix::{Prefix, Prefixable};
 use crate::store::{MultiStoreReadHandle, ReadKVStore};
 use std::marker::PhantomData;
 use std::ops::{Bound, Range, RangeBounds};
-use crate::bounds::{ScanBound, ScanRange};
+use crate::bounds::{IntoScanBounds, ScanBound, ScanRange};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Direction {

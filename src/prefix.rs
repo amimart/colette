@@ -1,9 +1,12 @@
 use crate::key::Key;
 use std::ops::Bound;
+use crate::bounds::IntoScanBounds;
 
 pub trait Prefix {
     fn encode_prefix(&self) -> Vec<u8>;
+}
 
+impl<P: Prefix> IntoScanBounds for P {
     fn start_bound(&self) -> Bound<Vec<u8>> {
         let bytes = self.encode_prefix();
         if bytes.is_empty() {
@@ -20,16 +23,6 @@ pub trait Prefix {
         }
 
         prefix_end(bytes)
-    }
-
-    fn range(&self) -> (Bound<Vec<u8>>, Bound<Vec<u8>>) {
-        let bytes = self.encode_prefix();
-        if bytes.is_empty() {
-            return (Bound::Unbounded, Bound::Unbounded);
-        }
-
-        let end_bound = prefix_end(bytes.clone());
-        (Bound::Included(bytes), end_bound)
     }
 }
 
@@ -155,7 +148,6 @@ mod tests {
 
         assert_eq!(prefix.start_bound(), Bound::Unbounded);
         assert_eq!(prefix.end_bound(), Bound::Unbounded);
-        assert_eq!(prefix.range(), (Bound::Unbounded, Bound::Unbounded));
     }
 
     #[test]
@@ -164,13 +156,6 @@ mod tests {
 
         assert_eq!(prefix.start_bound(), Bound::Included(vec![0x01, 0x02]));
         assert_eq!(prefix.end_bound(), Bound::Excluded(vec![0x01, 0x03]));
-        assert_eq!(
-            prefix.range(),
-            (
-                Bound::Included(vec![0x01, 0x02]),
-                Bound::Excluded(vec![0x01, 0x03])
-            )
-        );
     }
 
     #[test]
@@ -179,10 +164,6 @@ mod tests {
 
         assert_eq!(prefix.start_bound(), Bound::Included(vec![0xff]));
         assert_eq!(prefix.end_bound(), Bound::Unbounded);
-        assert_eq!(
-            prefix.range(),
-            (Bound::Included(vec![0xff]), Bound::Unbounded)
-        );
     }
 
     #[test]
