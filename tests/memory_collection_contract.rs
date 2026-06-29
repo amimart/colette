@@ -2,7 +2,8 @@ mod common;
 
 use colette::backend::memory::InMemoryMultiStore;
 
-#[test]
-fn memory_collection_contract() {
-    common::run_collection_contract_tests(InMemoryMultiStore::new);
+fn make_db() -> InMemoryMultiStore {
+    InMemoryMultiStore::new()
 }
+
+collection_contract_tests!(make_db);

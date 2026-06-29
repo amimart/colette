@@ -26,6 +26,78 @@ pub fn run_collection_contract_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     scans_filter_lexicographically_with_ranges_directions_and_cursors(&make_db);
 }
 
+#[macro_export]
+macro_rules! collection_contract_tests {
+    ($make_db:expr) => {
+        #[test]
+        fn single_value_primary_key_behaviour() {
+            $crate::common::single_value_primary_key_behaviour(&$make_db);
+        }
+
+        #[test]
+        fn tuple_primary_key_behaviour() {
+            $crate::common::tuple_primary_key_behaviour(&$make_db);
+        }
+
+        #[test]
+        fn insert_rejects_duplicate_primary_key() {
+            $crate::common::insert_rejects_duplicate_primary_key(&$make_db);
+        }
+
+        #[test]
+        fn update_requires_existing_record() {
+            $crate::common::update_requires_existing_record(&$make_db);
+        }
+
+        #[test]
+        fn update_replaces_existing_record() {
+            $crate::common::update_replaces_existing_record(&$make_db);
+        }
+
+        #[test]
+        fn save_inserts_new_record() {
+            $crate::common::save_inserts_new_record(&$make_db);
+        }
+
+        #[test]
+        fn save_updates_existing_record() {
+            $crate::common::save_updates_existing_record(&$make_db);
+        }
+
+        #[test]
+        fn remove_deletes_existing_record() {
+            $crate::common::remove_deletes_existing_record(&$make_db);
+        }
+
+        #[test]
+        fn remove_missing_record_is_ok() {
+            $crate::common::remove_missing_record_is_ok(&$make_db);
+        }
+
+        #[test]
+        fn insert_get_remove_get_sequence() {
+            $crate::common::insert_get_remove_get_sequence(&$make_db);
+        }
+
+        #[test]
+        fn unique_indexes_handle_and_scan_single_pair_and_triple_keys() {
+            $crate::common::unique_indexes_handle_and_scan_single_pair_and_triple_keys(&$make_db);
+        }
+
+        #[test]
+        fn multi_indexes_handle_and_scan_single_pair_and_triple_keys() {
+            $crate::common::multi_indexes_handle_and_scan_single_pair_and_triple_keys(&$make_db);
+        }
+
+        #[test]
+        fn scans_filter_lexicographically_with_ranges_directions_and_cursors() {
+            $crate::common::scans_filter_lexicographically_with_ranges_directions_and_cursors(
+                &$make_db,
+            );
+        }
+    };
+}
+
 pub fn single_value_primary_key_behaviour<DB: MultiStore>(make_db: &impl Fn() -> DB) {
     let users = user_collection("single_value_primary_key_behaviour", make_db());
     let ada = user(
