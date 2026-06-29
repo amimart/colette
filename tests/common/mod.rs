@@ -2,7 +2,7 @@
 
 use colette::collection::{collection, Collection};
 use colette::entity::Entity;
-use colette::error::CodecError;
+use colette::error::{CodecError, Error};
 use colette::impl_enum_key;
 use colette::index::{Index, Multi, Unique};
 use colette::index_registry::{Cons, Nil};
@@ -12,6 +12,14 @@ use colette::store::MultiStore;
 pub fn run_collection_contract_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     single_value_primary_key_behaviour(&make_db);
     tuple_primary_key_behaviour(&make_db);
+    insert_rejects_duplicate_primary_key(&make_db);
+    update_requires_existing_record(&make_db);
+    update_replaces_existing_record(&make_db);
+    save_inserts_new_record(&make_db);
+    save_updates_existing_record(&make_db);
+    remove_deletes_existing_record(&make_db);
+    remove_missing_record_is_ok(&make_db);
+    insert_get_remove_get_sequence(&make_db);
 }
 
 pub fn single_value_primary_key_behaviour<DB: MultiStore>(make_db: &impl Fn() -> DB) {
@@ -44,6 +52,116 @@ pub fn tuple_primary_key_behaviour<DB: MultiStore>(make_db: &impl Fn() -> DB) {
         Some(core_ada)
     );
     assert_eq!(memberships.get(("core".to_string(), 404)).unwrap(), None);
+}
+
+pub fn insert_rejects_duplicate_primary_key<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let users = user_collection("insert_rejects_duplicate_primary_key", make_db());
+    let ada = sample_ada();
+    let renamed = user(
+        ada.id,
+        "ada-renamed",
+        "ada-renamed@example.test",
+        Region::Pacific,
+        AccountStatus::Suspended,
+        Plan::Enterprise,
+        "security",
+        9,
+    );
+
+    users.insert(&ada).unwrap();
+
+    assert!(matches!(
+        users.insert(&renamed),
+        Err(Error::AlreadyExists(_))
+    ));
+    assert_eq!(users.get(ada.id).unwrap(), Some(ada));
+}
+
+pub fn update_requires_existing_record<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let users = user_collection("update_requires_existing_record", make_db());
+
+    assert!(matches!(
+        users.update(sample_ada()),
+        Err(Error::NotFound(_))
+    ));
+    assert_eq!(users.get(100).unwrap(), None);
+}
+
+pub fn update_replaces_existing_record<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let users = user_collection("update_replaces_existing_record", make_db());
+    let ada = sample_ada();
+    let moved = user(
+        ada.id,
+        "ada",
+        "ada@example.test",
+        Region::Americas,
+        AccountStatus::Suspended,
+        Plan::Enterprise,
+        "security",
+        4,
+    );
+
+    users.insert(&ada).unwrap();
+    users.update(&moved).unwrap();
+
+    assert_eq!(users.get(ada.id).unwrap(), Some(moved));
+}
+
+pub fn save_inserts_new_record<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let users = user_collection("save_inserts_new_record", make_db());
+    let ada = sample_ada();
+
+    users.save(&ada).unwrap();
+
+    assert_eq!(users.get(ada.id).unwrap(), Some(ada));
+}
+
+pub fn save_updates_existing_record<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let users = user_collection("save_updates_existing_record", make_db());
+    let ada = sample_ada();
+    let changed = user(
+        ada.id,
+        "ada",
+        "ada@example.test",
+        Region::Europe,
+        AccountStatus::Active,
+        Plan::Team,
+        "compiler",
+        7,
+    );
+
+    users.save(&ada).unwrap();
+    users.save(&changed).unwrap();
+
+    assert_eq!(users.get(ada.id).unwrap(), Some(changed));
+}
+
+pub fn remove_deletes_existing_record<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let users = user_collection("remove_deletes_existing_record", make_db());
+    let ada = sample_ada();
+
+    users.insert(&ada).unwrap();
+    users.remove(ada.id).unwrap();
+
+    assert_eq!(users.get(ada.id).unwrap(), None);
+}
+
+pub fn remove_missing_record_is_ok<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let users = user_collection("remove_missing_record_is_ok", make_db());
+
+    users.remove(404).unwrap();
+    users.remove(404).unwrap();
+}
+
+pub fn insert_get_remove_get_sequence<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let users = user_collection("insert_get_remove_get_sequence", make_db());
+    let ada = sample_ada();
+
+    users.insert(&ada).unwrap();
+    assert_eq!(users.get(ada.id).unwrap(), Some(ada.clone()));
+
+    users.remove(ada.id).unwrap();
+    assert_eq!(users.get(ada.id).unwrap(), None);
 }
 
 pub type UserCollection<DB> = Collection<
@@ -336,6 +454,19 @@ pub fn membership(org: &str, user_id: u64, role: Role, label: &str) -> Membershi
         role,
         label: label.to_string(),
     }
+}
+
+fn sample_ada() -> User {
+    user(
+        100,
+        "ada",
+        "ada@example.test",
+        Region::Europe,
+        AccountStatus::Active,
+        Plan::Team,
+        "core",
+        1,
+    )
 }
 
 impl Region {
