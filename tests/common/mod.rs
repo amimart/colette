@@ -10,7 +10,40 @@ use colette::key::{Key, KeySize};
 use colette::store::MultiStore;
 
 pub fn run_collection_contract_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
-    let _users = user_collection("contract_smoke_users", make_db());
+    single_value_primary_key_behaviour(&make_db);
+    tuple_primary_key_behaviour(&make_db);
+}
+
+pub fn single_value_primary_key_behaviour<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let users = user_collection("single_value_primary_key_behaviour", make_db());
+    let ada = user(
+        100,
+        "ada",
+        "ada@example.test",
+        Region::Europe,
+        AccountStatus::Active,
+        Plan::Team,
+        "core",
+        1,
+    );
+
+    users.insert(&ada).unwrap();
+
+    assert_eq!(users.get(100).unwrap(), Some(ada));
+    assert_eq!(users.get(404).unwrap(), None);
+}
+
+pub fn tuple_primary_key_behaviour<DB: MultiStore>(make_db: &impl Fn() -> DB) {
+    let memberships = membership_collection("tuple_primary_key_behaviour", make_db());
+    let core_ada = membership("core", 100, Role::Owner, "founder");
+
+    memberships.insert(&core_ada).unwrap();
+
+    assert_eq!(
+        memberships.get(("core".to_string(), 100)).unwrap(),
+        Some(core_ada)
+    );
+    assert_eq!(memberships.get(("core".to_string(), 404)).unwrap(), None);
 }
 
 pub type UserCollection<DB> = Collection<
