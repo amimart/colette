@@ -7,7 +7,8 @@ use colette::impl_enum_key;
 use colette::index::{Index, Multi, Unique};
 use colette::index_registry::{Cons, Nil};
 use colette::key::{Key, KeySize};
-use colette::store::MultiStore;
+use colette::scan::{IndexScan, PrefixScan};
+use colette::store::{MultiStore, MultiStoreReadHandle};
 
 pub fn run_collection_contract_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     single_value_primary_key_behaviour(&make_db);
@@ -20,6 +21,8 @@ pub fn run_collection_contract_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     remove_deletes_existing_record(&make_db);
     remove_missing_record_is_ok(&make_db);
     insert_get_remove_get_sequence(&make_db);
+    unique_indexes_handle_and_scan_single_pair_and_triple_keys(&make_db);
+    multi_indexes_handle_and_scan_single_pair_and_triple_keys(&make_db);
 }
 
 pub fn single_value_primary_key_behaviour<DB: MultiStore>(make_db: &impl Fn() -> DB) {
@@ -162,6 +165,78 @@ pub fn insert_get_remove_get_sequence<DB: MultiStore>(make_db: &impl Fn() -> DB)
 
     users.remove(ada.id).unwrap();
     assert_eq!(users.get(ada.id).unwrap(), None);
+}
+
+pub fn unique_indexes_handle_and_scan_single_pair_and_triple_keys<DB: MultiStore>(
+    make_db: &impl Fn() -> DB,
+) {
+    let users = seeded_user_collection("unique_indexes_handle_and_scan", make_db());
+
+    assert_eq!(
+        scan_handles(users.scan(UniqueEmail).unwrap()),
+        vec!["ada", "dennis", "grace", "linus", "margaret", "yukihiro"]
+    );
+    assert_eq!(
+        scan_handles(
+            users
+                .scan(UniqueRegionHandle)
+                .unwrap()
+                .prefix(Region::Europe)
+        ),
+        vec!["ada", "grace", "linus"]
+    );
+    assert_eq!(
+        scan_handles(
+            users
+                .scan(UniqueRegionPlanHandle)
+                .unwrap()
+                .prefix((Region::Europe, Plan::Team))
+        ),
+        vec!["ada"]
+    );
+
+    let duplicate_email = user(
+        900,
+        "duplicate-email",
+        "ada@example.test",
+        Region::Pacific,
+        AccountStatus::Invited,
+        Plan::Free,
+        "support",
+        1,
+    );
+    assert!(matches!(
+        users.insert(&duplicate_email),
+        Err(Error::AlreadyExists(_))
+    ));
+}
+
+pub fn multi_indexes_handle_and_scan_single_pair_and_triple_keys<DB: MultiStore>(
+    make_db: &impl Fn() -> DB,
+) {
+    let users = seeded_user_collection("multi_indexes_handle_and_scan", make_db());
+
+    assert_eq!(
+        scan_handles(users.scan(ByStatus).unwrap().prefix(AccountStatus::Active)),
+        vec!["ada", "grace", "margaret"]
+    );
+    assert_eq!(
+        scan_handles(
+            users
+                .scan(ByRegionStatus)
+                .unwrap()
+                .prefix((Region::Europe, AccountStatus::Active))
+        ),
+        vec!["ada", "grace"]
+    );
+    assert_eq!(
+        scan_handles(users.scan(ByTeamStatusSeat).unwrap().prefix((
+            "core",
+            AccountStatus::Active,
+            1u16
+        ))),
+        vec!["ada"]
+    );
 }
 
 pub type UserCollection<DB> = Collection<
@@ -454,6 +529,82 @@ pub fn membership(org: &str, user_id: u64, role: Role, label: &str) -> Membershi
         role,
         label: label.to_string(),
     }
+}
+
+fn seeded_user_collection<DB: MultiStore>(name: &'static str, db: DB) -> UserCollection<DB> {
+    let users = user_collection(name, db);
+    for user in sample_users() {
+        users.insert(user).unwrap();
+    }
+    users
+}
+
+fn sample_users() -> Vec<User> {
+    vec![
+        sample_ada(),
+        user(
+            101,
+            "grace",
+            "grace@example.test",
+            Region::Europe,
+            AccountStatus::Active,
+            Plan::Enterprise,
+            "core",
+            2,
+        ),
+        user(
+            102,
+            "linus",
+            "linus@example.test",
+            Region::Europe,
+            AccountStatus::Suspended,
+            Plan::Free,
+            "kernel",
+            1,
+        ),
+        user(
+            103,
+            "margaret",
+            "margaret@example.test",
+            Region::Americas,
+            AccountStatus::Active,
+            Plan::Enterprise,
+            "apollo",
+            1,
+        ),
+        user(
+            104,
+            "yukihiro",
+            "yukihiro@example.test",
+            Region::Pacific,
+            AccountStatus::Invited,
+            Plan::Team,
+            "ruby",
+            3,
+        ),
+        user(
+            105,
+            "dennis",
+            "dennis@example.test",
+            Region::Americas,
+            AccountStatus::Suspended,
+            Plan::Team,
+            "unix",
+            2,
+        ),
+    ]
+}
+
+fn scan_handles<'a, ReadHandle, Idx>(scan: IndexScan<'a, ReadHandle, User, Idx>) -> Vec<String>
+where
+    ReadHandle: MultiStoreReadHandle,
+    Idx: Index<User>,
+    for<'b> Idx::Kind<'b>: colette::index::IndexKind<Idx::Key<'b>, <User as Entity>::Key<'b>>,
+{
+    scan.iter()
+        .unwrap()
+        .map(|entry| entry.unwrap().record.handle)
+        .collect()
 }
 
 fn sample_ada() -> User {
