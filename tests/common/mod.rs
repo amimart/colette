@@ -7,7 +7,7 @@ use colette::impl_enum_key;
 use colette::index::{Index, Multi, Unique};
 use colette::index_registry::{Cons, Nil};
 use colette::key::{Key, KeySize};
-use colette::scan::{IndexScan, PrefixScan};
+use colette::scan::{Direction, IndexScan, PrefixScan};
 use colette::store::{MultiStore, MultiStoreReadHandle};
 
 pub fn run_collection_contract_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
@@ -23,6 +23,7 @@ pub fn run_collection_contract_tests<DB: MultiStore>(make_db: impl Fn() -> DB) {
     insert_get_remove_get_sequence(&make_db);
     unique_indexes_handle_and_scan_single_pair_and_triple_keys(&make_db);
     multi_indexes_handle_and_scan_single_pair_and_triple_keys(&make_db);
+    scans_filter_lexicographically_with_ranges_directions_and_cursors(&make_db);
 }
 
 pub fn single_value_primary_key_behaviour<DB: MultiStore>(make_db: &impl Fn() -> DB) {
@@ -237,6 +238,96 @@ pub fn multi_indexes_handle_and_scan_single_pair_and_triple_keys<DB: MultiStore>
         ))),
         vec!["ada"]
     );
+}
+
+pub fn scans_filter_lexicographically_with_ranges_directions_and_cursors<DB: MultiStore>(
+    make_db: &impl Fn() -> DB,
+) {
+    let users = seeded_user_collection("scan_ranges_directions_and_cursors", make_db());
+
+    assert_eq!(
+        scan_handles(users.scan(ByTeamStatusSeat).unwrap().prefix("core")),
+        vec!["ada", "grace"]
+    );
+    assert_eq!(
+        scan_handles(
+            users
+                .scan(ByTeamStatusSeat)
+                .unwrap()
+                .prefix("core")
+                .direction(Direction::RightToLeft)
+        ),
+        vec!["grace", "ada"]
+    );
+    assert_eq!(
+        scan_handles(
+            users.scan(ByTeamStatusSeat).unwrap().prefix_range(
+                std::ops::Bound::Included("core")..std::ops::Bound::Included("kernel")
+            )
+        ),
+        vec!["ada", "grace", "linus"]
+    );
+    assert_eq!(
+        scan_handles(
+            users
+                .scan(ByTeamStatusSeat)
+                .unwrap()
+                .prefix_range(
+                    std::ops::Bound::Included("core")..std::ops::Bound::Included("kernel")
+                )
+                .direction(Direction::RightToLeft)
+        ),
+        vec!["linus", "grace", "ada"]
+    );
+    assert_eq!(
+        scan_handles(users.scan(ByTeamStatusSeat).unwrap().range(
+            std::ops::Bound::Included(("core", AccountStatus::Active, 1u16, &100u64))
+                ..std::ops::Bound::Included(("core", AccountStatus::Active, 2u16, &101u64))
+        )),
+        vec!["ada", "grace"]
+    );
+    assert_eq!(
+        scan_handles(
+            users
+                .scan(ByTeamStatusSeat)
+                .unwrap()
+                .range(
+                    std::ops::Bound::Included(("core", AccountStatus::Active, 1u16, &100u64))
+                        ..std::ops::Bound::Included(("core", AccountStatus::Active, 2u16, &101u64))
+                )
+                .direction(Direction::RightToLeft)
+        ),
+        vec!["grace", "ada"]
+    );
+    assert_eq!(
+        scan_handles(users.scan(ByTeamStatusSeat).unwrap().prefix("core").after((
+            "core",
+            AccountStatus::Active,
+            1u16,
+            &100u64
+        ))),
+        vec!["grace"]
+    );
+    assert_eq!(
+        scan_handles(
+            users
+                .scan(ByTeamStatusSeat)
+                .unwrap()
+                .prefix("core")
+                .direction(Direction::RightToLeft)
+                .after(("core", AccountStatus::Active, 2u16, &101u64))
+        ),
+        vec!["ada"]
+    );
+    assert!(matches!(
+        users
+            .scan(ByTeamStatusSeat)
+            .unwrap()
+            .prefix("core")
+            .after(("kernel", AccountStatus::Suspended, 1u16, &102u64))
+            .iter(),
+        Err(Error::CursorOutOfBounds)
+    ));
 }
 
 pub type UserCollection<DB> = Collection<
